@@ -1113,6 +1113,7 @@ void statistic_output(struct ssd_info *ssd)
 	fprintf(ssd->statisticfile,"write request count: %13d\n",ssd->write_request_count);
 	fprintf(ssd->statisticfile,"read request average size: %13f\n",ssd->ave_read_size);
 	fprintf(ssd->statisticfile,"write request average size: %13f\n",ssd->ave_write_size);
+	fprintf(ssd->statisticfile, "pe cycles: %13d\n", ssd->pe_cycles);
 	if(ssd->read_request_count != 0)
 		fprintf(ssd->statisticfile,"read request average response time: %16I64u\n",ssd->read_avg/ssd->read_request_count);
 	if(ssd->write_request_count != 0)

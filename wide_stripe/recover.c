@@ -83,8 +83,8 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 	plane_channel = plane_chip * ssd->parameter->chip_channel[0];
 
 	// 读取磨损块表
-	int wear_num = 0, high_wear_num = 0, idle_num = 0;
-	unsigned int wear_flag = 0, high_wear_flag = 0, idle_flag = 0;
+	int wear_num = 0, high_wear_num = 0, idle_num = 0, healthy_num = 0;
+	unsigned int wear_flag = 0, high_wear_flag = 0, idle_flag = 0, healthy_flag = 0;
 
 	for (int i = 0; i < BAND_WITDH; i++)
 	{
@@ -119,19 +119,22 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 		}
 	}
 
-	int n_flag = idle_flag;
+	healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
+	healthy_flag = (~(idle_flag | wear_flag | high_wear_flag)) & ((1 << BAND_WITDH) - 1);
+
 	int band_id = -1;
 	int error_page_num = 1;
+	int band_flag = healthy_flag | wear_flag;
 	int band_width = 0; //损坏块所处条带长度
-	int now_length = BAND_WITDH - high_wear_num - idle_num;
+	int now_length = healthy_num + wear_num; //高磨损块不参与条带组织
 	for (int i = 0; i < wear_num; i++) {
 		int parity_state = 0;
-		band_width = now_length / (wear_num - i);
+		band_width = (now_length + wear_num - i - 1) / (wear_num - i); // 向上取整
 		now_length -= band_width;
 		for (int j = 0; j < band_width; j++) {
 			//寻找该损坏块位于哪个条带
-			int pos = find_first_zero(ssd, n_flag);
-			n_flag = n_flag | (1 << (pos % BAND_WITDH));
+			int pos = find_first_one(ssd, band_flag);
+			band_flag &= ~(1 << pos);
 			if (fault_pos == pos) {
 				band_id = i;
 				continue;

@@ -872,26 +872,28 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 	int page_mask = 0;
 	unsigned int pos; 
 
+	int wear_num = 0, high_wear_num = 0, idle_num = 0, healthy_num = 0;
+	unsigned int wear_flag = 0, high_wear_flag = 0, idle_flag = 0, healthy_flag = 0;
+
 	//获取将要写的条带的ec模式
-	if(find_superblock_for_write(ssd, 0, 0, 0, 0, req) == FAILURE)
-	{
-		printf("get_ppn()\tERROR :there is no free page in channel:0, chip:0, die:0, plane:0\n");	
-		getchar();
-		return NULL;
-	}
+	while (1) {
+		if (find_superblock_for_write(ssd, 0, 0, 0, 0, req) == FAILURE)
+		{
+			printf("get_ppn()\tERROR :there is no free page in channel:0, chip:0, die:0, plane:0\n");
+			getchar();
+			return NULL;
+		}
 
-	active_superblock = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block; //获取当前超级块号
-	// 读取磨损块表
-	int wear_num = 0, high_wear_num = 0, idle_num = 0;
-	unsigned int wear_flag = 0, high_wear_flag = 0, idle_flag = 0;
-
-	for (int i = 0; i < BAND_WITDH; i++)
-	{
-		/*if (i == 5 || i == 7)
-			ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 1;
-		else if(i == 11)
-			ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 2;*/
-		switch (ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state) {
+		active_superblock = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block; //获取当前超级块号
+		// 更新磨损块表，调整条带组织
+		update_block_wear_state(ssd, active_superblock);
+		for (int i = 0; i < BAND_WITDH; i++)
+		{
+			/*if (i == 5 || i == 7)
+				ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 1;
+			else if(i == 11)
+				ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 2;*/
+			switch (ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state) {
 			case 1:
 			{
 				wear_num++;
@@ -914,30 +916,41 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 			}
 			default: {
 			}
-		}
-	}
-
-	//没有磨损块时默认选择最后一块作为校验块
-	if (wear_num == 0)
-	{
-		wear_num = 1;
-		for (int i = BAND_WITDH - 1; i >= 0; i--) {
-			if ((high_wear_flag | (1 << i) != high_wear_flag) && (idle_flag | (1 << i) != idle_flag)) {
-				wear_flag |= 1 << i;
-				break;
 			}
 		}
+		//没有磨损块时默认选择最后一块健康块作为校验块
+		if (wear_num == 0)
+		{
+			wear_num = 1;
+			for (int i = BAND_WITDH - 1; i >= 0; i--) {
+				if ((healthy_flag | (1 << i)) == healthy_flag) {
+					wear_flag |= 1 << i;
+					break;
+				}
+			}
+		}
+
+		healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
+		healthy_flag = (~(idle_flag | wear_flag | high_wear_flag)) & ((1 << BAND_WITDH) - 1);
+		// 健康块少于磨损块，无法使用WARD组织，
+		if (healthy_num < wear_num) {
+			// 弃用该超级块，使用下个超级块
+			ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block++;
+			continue;
+		}
+		// 使用该超级块，进入条带组织
+		break;
 	}
-	int total_flag = wear_flag | high_wear_flag | idle_flag;
-	int now_length = BAND_WITDH - high_wear_num - idle_num;
+
+	int now_length = healthy_num + wear_num; //高磨损块不参与条带组织
 	for (int i = 0; i < wear_num; i++) {
 		int parity_state = 0;
-		int band_width = now_length / (wear_num - i);
+		int band_width = (now_length + wear_num - i - 1) / (wear_num - i); // 向上取整
 		//printf("band_width:%d\n", band_width);
 		now_length -= band_width;
 		for (int j = 0; j < band_width - 1; j++) {
-			int pos = find_first_zero(ssd, total_flag);
-			total_flag = total_flag | (1 << (pos % BAND_WITDH));
+			int pos = find_first_one(ssd, healthy_flag);
+			healthy_flag &= ~(1 << pos);
 
 			pt = ssd->dram->buffer->buffer_tail;
 			//从二叉树中删除该节点
@@ -1001,7 +1014,7 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 
 	//为整个超级页创建请求
 	int write_flag = idle_flag | high_wear_flag;
-	for(i = 0; i < BAND_WITDH - high_wear_num - idle_num; i++)
+	for(i = 0; i < wear_num + healthy_num; i++)
 	{
 		int write_pos = find_first_zero(ssd, write_flag);
 		write_flag |= 1 << write_pos;
@@ -1026,6 +1039,31 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 	return ssd;
 }
 
+// 根据uper更新磨损块表
+struct ssd_info* update_block_wear_state(struct ssd_info* ssd, int active_superblock) {
+	unsigned int channel, chip, die, plane, page;
+	for (channel = 0; channel < ssd->parameter->channel_number; channel++) {
+		for (chip = 0; chip < ssd->parameter->chip_channel[0]; chip++) {
+			for (die = 0; die < ssd->parameter->die_chip; die++) {
+				for (plane = 0; plane < ssd->parameter->plane_die; plane++) {
+					for (page = 0; page < ssd->parameter->page_block; page++) {
+						int uper = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_superblock].page_head[page].uper;
+						int block_id = (((channel * ssd->parameter->chip_channel[0] + chip) * ssd->parameter->die_chip + die) * ssd->parameter->plane_die + plane) * ssd->parameter->block_plane + active_superblock;
+						if (uper >= 0.005 && uper < 0.006) {
+							if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state == 0)
+								ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 1;
+						}
+						else if (uper >= 0.006) {
+							if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state <= 1)
+								ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 2;
+						}
+					}
+				}
+			}
+		}
+	}
+	return ssd;
+}
 
 struct sub_request * creat_write_sub_request(struct ssd_info * ssd,unsigned int lpn,int sub_size,unsigned int state,struct request * req, unsigned int pos, unsigned int block, unsigned int page)
 {
@@ -3182,33 +3220,6 @@ void NAND_write(struct ssd_info *ssd, struct sub_request *sub)
 	ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].page_head[page].valid_state= sub->state;
 	ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].page_head[page].free_state=((~sub->state)&full_page);
 	//每次写闪存后更新磨损表
-	//update_page_wear_state(ssd, sub);
-	update_block_wear_state(ssd, sub);
-}
-
-struct ssd_info* update_page_wear_state(struct ssd_info* ssd, struct sub_request* sub) {
-	return ssd;
-}
-
-struct ssd_info* update_block_wear_state(struct ssd_info* ssd, struct sub_request* sub) {
-	unsigned int channel, chip, die, plane, block, page;
-	channel = sub->location->channel;
-	chip = sub->location->chip;
-	die = sub->location->die;
-	plane = sub->location->plane;
-	block = sub->location->block;
-	page = sub->location->page;
-	int uper = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].page_head[page].uper;
-	int block_id = (((channel * ssd->parameter->chip_channel[0] + chip) * ssd->parameter->die_chip + die) * ssd->parameter->plane_die + plane) * ssd->parameter->block_plane + block;
-	if (uper >= 0.005 && uper < 0.006) {
-		if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state == 0)
-			ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 1;
-	}
-	else if (uper >= 0.006) {
-		if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state <= 1)
-			ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 2;
-	}
-	return ssd;
 }
 
 struct ssd_info *dynamic_advanced_process(struct ssd_info *ssd,unsigned int channel,unsigned int chip)

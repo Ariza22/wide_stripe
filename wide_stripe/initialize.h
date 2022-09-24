@@ -224,6 +224,7 @@ struct ssd_info{
 	unsigned long write_flash_count;     	//实际产生的对flash的写操作
 	unsigned long write_flash_gc_count ;
 	unsigned long waste_page_count;      	//记录因为高级命令的限制导致的页浪费
+	unsigned long pe_cycles; //ssd pe_cycle次数
 	float ave_read_size;
 	float ave_write_size;
 	unsigned int request_queue_length;
@@ -256,6 +257,7 @@ struct ssd_info{
 struct band_info{
 	int ec_modle; //条带采用的纠删码模式
 	int pe_cycle; //每个条带的GC次数（按照条带进行GC，条带内所有块的P/E周期相同）
+	int advance_gc_flag; // 提前gc标记，由于条带中出现高磨损块
 };
 #endif
 
