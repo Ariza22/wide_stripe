@@ -385,7 +385,6 @@ struct dram_info * initialize_dram(struct ssd_info * ssd)
 
 struct page_info * initialize_page(struct page_info * p_page )
 {
-	p_page->uper = 0;
 	p_page->valid_state =0;
 	p_page->free_state = PG_SUB;
 	p_page->lpn = -1;
@@ -407,16 +406,20 @@ struct blk_info * initialize_block(struct blk_info * p_block,struct parameter_va
 	p_block->last_write_page = -1;	// no page has been programmed
 
 	p_block->page_head = (struct page_info *)malloc(parameter->page_block * sizeof(struct page_info));
+	p_block->rber_per_cycle = (double*)malloc(10000 * sizeof(double));
 	alloc_assert(p_block->page_head,"p_block->page_head");
+	alloc_assert(p_block->rber_per_cycle, "p_block->rber_per_cycle");
 	memset(p_block->page_head,0,parameter->page_block * sizeof(struct page_info));
-
-	for(i = 0; i<parameter->page_block; i++)
+	for(i = 0; i < parameter->page_block; i++)
 	{
 		p_page = &(p_block->page_head[i]);
 		initialize_page(p_page );
 	}
+	double n = ((double)(rand() % 10000 - 5000)) / 10000000;
+	for (i = 0; i < 10000; i++) {
+		p_block->rber_per_cycle[i] = 0.002 + n / 2 + (2.5 + n * 1500) * i * i / 10000000000;
+	}
 	return p_block;
-
 }
 
 struct plane_info * initialize_plane(struct plane_info * p_plane,struct parameter_value *parameter )
@@ -429,7 +432,7 @@ struct plane_info * initialize_plane(struct plane_info * p_plane,struct paramete
 	p_plane->blk_head = (struct blk_info *)malloc(parameter->block_plane * sizeof(struct blk_info));
 	alloc_assert(p_plane->blk_head,"p_plane->blk_head");
 	memset(p_plane->blk_head,0,parameter->block_plane * sizeof(struct blk_info));
-
+	srand((unsigned)time(NULL));
 	for(i = 0; i<parameter->block_plane; i++)
 	{
 		p_block = &(p_plane->blk_head[i]);

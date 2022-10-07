@@ -885,8 +885,11 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 		}
 
 		active_superblock = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block; //获取当前超级块号
-		// 更新磨损块表，调整条带组织
-		update_block_wear_state(ssd, active_superblock);
+		if ((ssd->band_head[active_superblock].pe_cycle - 1) % 1 == 0) { // 检测频率
+			// 更新磨损块表，调整条带组织
+			update_block_wear_state(ssd, active_superblock);
+		}
+
 		for (int i = 0; i < BAND_WITDH; i++)
 		{
 			/*if (i == 5 || i == 7)
@@ -1046,18 +1049,17 @@ struct ssd_info* update_block_wear_state(struct ssd_info* ssd, int active_superb
 		for (chip = 0; chip < ssd->parameter->chip_channel[0]; chip++) {
 			for (die = 0; die < ssd->parameter->die_chip; die++) {
 				for (plane = 0; plane < ssd->parameter->plane_die; plane++) {
-					for (page = 0; page < ssd->parameter->page_block; page++) {
-						int uper = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_superblock].page_head[page].uper;
-						int block_id = (((channel * ssd->parameter->chip_channel[0] + chip) * ssd->parameter->die_chip + die) * ssd->parameter->plane_die + plane) * ssd->parameter->block_plane + active_superblock;
-						if (uper >= 0.005 && uper < 0.006) {
-							if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state == 0)
-								ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 1;
-						}
-						else if (uper >= 0.006) {
-							if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state <= 1)
-								ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 2;
-						}
+					int rber = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_superblock].rber_per_cycle[ssd->band_head[active_superblock].pe_cycle - 1]; //上次写后读检测出的这次才能修改条带组织
+					int block_id = (((channel * ssd->parameter->chip_channel[0] + chip) * ssd->parameter->die_chip + die) * ssd->parameter->plane_die + plane) * ssd->parameter->block_plane + active_superblock;
+					if (rber >= 0.005 && rber < 0.006) {
+						if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state == 0)
+							ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 1;
 					}
+					else if (rber >= 0.006) {
+						if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state <= 1)
+							ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 2;
+					}
+					
 				}
 			}
 		}

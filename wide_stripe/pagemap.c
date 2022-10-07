@@ -2202,11 +2202,7 @@ int gc_for_superblock(struct ssd_info* ssd, struct request* req)
 	gc_subpage_num = process_for_gc(ssd, req, gc_superblock_number);
 
 	ssd->band_head[gc_superblock_number].pe_cycle++;
-	ssd->pe_cycles++;
-	if (ssd->pe_cycles % 1000 == 0) {
-		// 将带有高磨损块的条带标记为优先gc
-		mark_high_wear_state(ssd);
-	}
+
 	////当P/E周期达到4/5的上限阈值时，将EC模式（可靠性）调到最大
 	//if (ssd->band_head[gc_superblock_number].pe_cycle > (ssd->parameter->ers_limit * 4) / 5)
 	//{
@@ -2215,21 +2211,17 @@ int gc_for_superblock(struct ssd_info* ssd, struct request* req)
 	return SUCCESS;
 }
 
-struct ssd_info* mark_high_wear_state(struct ssd_info* ssd) {
+struct ssd_info* mark_high_wear_state(struct ssd_info* ssd, int block) {
 	unsigned int channel, chip, die, plane, page;
-	for (int i = 0; i < ssd->parameter->block_plane; i++) {
-		for (channel = 0; channel < ssd->parameter->channel_number; channel++) {
-			for (chip = 0; chip < ssd->parameter->chip_channel[0]; chip++) {
-				for (die = 0; die < ssd->parameter->die_chip; die++) {
-					for (plane = 0; plane < ssd->parameter->plane_die; plane++) {
-						for (page = 0; page < ssd->parameter->page_block; page++) {
-							int uper = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[i].page_head[page].uper;
-							// 出现高磨损块
-							if (uper >= 0.006) {
-								// 暂不更改磨损块表，避免条带组织混乱，重新分配时再修改
-								ssd->band_head[i].advance_gc_flag = 1;
-							}
-						}
+	for (channel = 0; channel < ssd->parameter->channel_number; channel++) {
+		for (chip = 0; chip < ssd->parameter->chip_channel[0]; chip++) {
+			for (die = 0; die < ssd->parameter->die_chip; die++) {
+				for (plane = 0; plane < ssd->parameter->plane_die; plane++) {
+					double rber = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].rber_per_cycle[ssd->band_head[block].pe_cycle];
+					// 出现高磨损块
+					if (rber >= 0.006) {
+						// 暂不更改磨损块表，避免条带组织混乱，重新分配时再修改
+						ssd->band_head[block].advance_gc_flag = 1;
 					}
 				}
 			}

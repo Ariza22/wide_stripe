@@ -334,6 +334,7 @@ struct blk_info{
 	unsigned int invalid_page_num;     //记录该块中失效页的个数，同上
 	int last_write_page;               //记录最近一次写操作执行的页数,-1表示该块没有一页被写过
 	struct page_info *page_head;       //记录每一子页的状态
+	double* rber_per_cycle;      //记录每个pe cycle的rber
 	unsigned int gc_flag ;
 #ifdef BROKEN_BLOCK
 	Status bad_block_flag;			  
@@ -342,7 +343,6 @@ struct blk_info{
 
 
 struct page_info{                      //lpn记录该物理页存储的逻辑页，当该逻辑页有效时，valid_state大于0，free_state大于0；
-	int uper;                          //页磨损程度的量化
 	int valid_state;                   //indicate the page is valid or invalid
 	int free_state;                    //each bit indicates the subpage is free or occupted. 1 indicates that the bit is free and 0 indicates that the bit is used
 	unsigned int lpn;                 
