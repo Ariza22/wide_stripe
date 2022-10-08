@@ -136,6 +136,7 @@ struct ssd_info *simulate(struct ssd_info *ssd)
 	{
 		
 		flag=get_requests(ssd);
+		//pre_process_test(ssd, 2);
 		if(flag == 1)
 		{   
 			simulate_test_count++;

@@ -2223,6 +2223,7 @@ struct ssd_info* mark_high_wear_state(struct ssd_info* ssd, int block) {
 					// 出现高磨损块
 					if (rber >= 0.006) {
 						// 暂不更改磨损块表，避免条带组织混乱，重新分配时再修改
+						ssd->band_head[block].bad_flag = 1;
 						ssd->band_head[block].advance_gc_flag = 1;
 					}
 				}

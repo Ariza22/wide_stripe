@@ -870,8 +870,8 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 	int page_mask = 0;
 	unsigned int pos; 
 
-	int wear_num = 0, high_wear_num = 0, idle_num = 0, healthy_num = 0;
-	unsigned int wear_flag = 0, high_wear_flag = 0, idle_flag = 0, healthy_flag = 0;
+	int wear_num, high_wear_num, idle_num, healthy_num;
+	unsigned int wear_flag, high_wear_flag, idle_flag, healthy_flag;
 
 	//获取将要写的条带的ec模式
 	while (1) {
@@ -888,6 +888,14 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 			update_block_wear_state(ssd, active_superblock);
 		}
 
+		wear_num = 0;
+		high_wear_num = 0;
+		idle_num = 0;
+		healthy_num = 0;
+		wear_flag = 0;
+		high_wear_flag = 0; 
+		idle_flag = 0;
+		healthy_flag = 0;
 		for (int i = 0; i < BAND_WITDH; i++)
 		{
 			/*if (i == 5 || i == 7)
@@ -941,6 +949,7 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 		if (healthy_num < wear_num) {
 			// 弃用该超级块，使用下个超级块
 			ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block++;
+			ssd->band_head[active_superblock].bad_flag = 1;
 			continue;
 		}
 		// 使用该超级块，进入条带组织
@@ -1382,7 +1391,7 @@ Status  find_superblock_for_write(struct ssd_info *ssd,unsigned int channel,unsi
 	free_page_num=ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].free_page_num;
 	//last_write_page=ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].free_page_num;
 	//寻找active_block(从当前active_block开始，顺序查找，找到第一个free_page_num不为0的block)
-	while((free_page_num == 0)&&(count<ssd->parameter->block_plane))
+	while((free_page_num == 0 || ssd->band_head[active_block].bad_flag == 1)&&(count<ssd->parameter->block_plane))
 	{
 		active_block=(active_block+1)%ssd->parameter->block_plane;	
 		free_page_num=ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].free_page_num;

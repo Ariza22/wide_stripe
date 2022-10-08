@@ -735,6 +735,20 @@ void pre_process_test(struct ssd_info *ssd,int type)
 	fclose(fp);
 }
 
+void ouput_bad_block(struct ssd_info* ssd) {
+	FILE* fp = fopen("bad_block.txt", "w");
+	if (fp == NULL)
+	{
+		printf("open bad_block falided\n");
+		return;
+	}
+	for (int block = 0; block < ssd->parameter->block_plane; block++)
+	{
+		fprintf(fp, "num:%d  bad_flag:%d\n", block, ssd->band_head[block].bad_flag);
+	}
+	fclose(fp);
+}
+
 unsigned int  spread_lpn(struct ssd_info * ssd,unsigned int lpn)
 {	
 	unsigned int add_flag;

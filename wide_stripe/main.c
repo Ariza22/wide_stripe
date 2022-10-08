@@ -90,6 +90,8 @@ void main()
 		pre_process_test(ssd,2);
 	printf("the pre_process_test is completed!\n\n");
 #endif
+	printf("\nstart the bad block output\n");
+	ouput_bad_block(ssd);
 	/*将仿真结果和请求相关信息输出到statisticfile（.dat) 和outputfile（.out）中*/
 	printf("start statistic output\n");
 	statistic_output(ssd);

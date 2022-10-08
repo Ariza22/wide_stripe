@@ -257,6 +257,7 @@ struct band_info{
 	int ec_modle; //条带采用的纠删码模式
 	int pe_cycle; //每个条带的GC次数（按照条带进行GC，条带内所有块的P/E周期相同）
 	int advance_gc_flag; // 提前gc标记，由于条带中出现高磨损块
+	int bad_flag; //超级块弃用标记
 };
 #endif
 
