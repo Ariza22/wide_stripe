@@ -881,10 +881,10 @@ void trace_output(struct ssd_info* ssd) {
 			if (flag == 1)
 			{
 				//写后读检测到的高磨损块优先gc
-				if ( ssd->band_head[req->subs->location->block].pe_cycle % 1 == 0 ) {//检测频率
+				//if (ssd->band_head[req->subs->location->block].pe_cycle % 1 == 0 ) {//检测频率
 					// 将带有高磨损块的条带标记为优先gc
-					mark_high_wear_state(ssd, req->subs->location->block);
-				}
+					//mark_high_wear_state(ssd, req->subs->location->block);
+				//}
 				fprintf(ssd->outputfile, "%16I64u %10u %6u %2u %16I64u %16I64u %10I64u\n", req->time, req->lsn, req->size, req->operation, start_time, end_time, end_time - req->time);
 				fflush(ssd->outputfile);
 
@@ -1118,7 +1118,6 @@ void statistic_output(struct ssd_info *ssd)
 	fprintf(ssd->statisticfile,"write request count: %13d\n",ssd->write_request_count);
 	fprintf(ssd->statisticfile,"read request average size: %13f\n",ssd->ave_read_size);
 	fprintf(ssd->statisticfile,"write request average size: %13f\n",ssd->ave_write_size);
-	fprintf(ssd->statisticfile, "pe cycles: %13d\n", ssd->pe_cycles);
 	if(ssd->read_request_count != 0)
 		fprintf(ssd->statisticfile,"read request average response time: %16I64u\n",ssd->read_avg/ssd->read_request_count);
 	if(ssd->write_request_count != 0)

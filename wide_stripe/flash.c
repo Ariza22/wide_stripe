@@ -885,10 +885,10 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 		}
 
 		active_superblock = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block; //获取当前超级块号
-		if ((ssd->band_head[active_superblock].pe_cycle - 1) % 1 == 0) { // 检测频率
-			// 更新磨损块表，调整条带组织
-			update_block_wear_state(ssd, active_superblock);
-		}
+		//if ((ssd->band_head[active_superblock].pe_cycle - 1) % 1 == 0) { // 检测频率
+		//	// 更新磨损块表，调整条带组织
+		//	//update_block_wear_state(ssd, active_superblock);
+		//}
 
 		for (int i = 0; i < BAND_WITDH; i++)
 		{
@@ -1043,29 +1043,31 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 }
 
 // 根据uper更新磨损块表
-struct ssd_info* update_block_wear_state(struct ssd_info* ssd, int active_superblock) {
-	unsigned int channel, chip, die, plane, page;
-	for (channel = 0; channel < ssd->parameter->channel_number; channel++) {
-		for (chip = 0; chip < ssd->parameter->chip_channel[0]; chip++) {
-			for (die = 0; die < ssd->parameter->die_chip; die++) {
-				for (plane = 0; plane < ssd->parameter->plane_die; plane++) {
-					int rber = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_superblock].rber_per_cycle[ssd->band_head[active_superblock].pe_cycle - 1]; //上次写后读检测出的这次才能修改条带组织
-					int block_id = (((channel * ssd->parameter->chip_channel[0] + chip) * ssd->parameter->die_chip + die) * ssd->parameter->plane_die + plane) * ssd->parameter->block_plane + active_superblock;
-					if (rber >= 0.005 && rber < 0.006) {
-						if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state == 0)
-							ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 1;
-					}
-					else if (rber >= 0.006) {
-						if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state <= 1)
-							ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 2;
-					}
-					
-				}
-			}
-		}
-	}
-	return ssd;
-}
+//struct ssd_info* update_block_wear_state(struct ssd_info* ssd, int active_superblock) {
+//	unsigned int channel, chip, die, plane, page;
+//	for (channel = 0; channel < ssd->parameter->channel_number; channel++) {
+//		for (chip = 0; chip < ssd->parameter->chip_channel[0]; chip++) {
+//			for (die = 0; die < ssd->parameter->die_chip; die++) {
+//				for (plane = 0; plane < ssd->parameter->plane_die; plane++) {
+//					double rand_seed = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_superblock].rber_random_seed;
+//					int pe_cycle = ssd->band_head[active_superblock].pe_cycle - 1;//由于写后读，此时应该使用上一轮pe_cycle的磨损数据
+//					double rber = 0.002 + rand_seed / 2 + (2.5 + rand_seed * 1500) * pe_cycle * pe_cycle / 10000000000;
+//					int block_id = (((channel * ssd->parameter->chip_channel[0] + chip) * ssd->parameter->die_chip + die) * ssd->parameter->plane_die + plane) * ssd->parameter->block_plane + active_superblock;
+//					if (rber >= 0.005 && rber < 0.006) {
+//						if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state == 0)
+//							ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 1;
+//					}
+//					else if (rber >= 0.006) {
+//						if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state <= 1)
+//							ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 2;
+//					}
+//					
+//				}
+//			}
+//		}
+//	}
+//	return ssd;
+//}
 
 struct sub_request * creat_write_sub_request(struct ssd_info * ssd,unsigned int lpn,int sub_size,unsigned int state,struct request * req, unsigned int pos, unsigned int block, unsigned int page)
 {

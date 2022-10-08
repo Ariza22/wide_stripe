@@ -404,20 +404,14 @@ struct blk_info * initialize_block(struct blk_info * p_block,struct parameter_va
 #endif
 	p_block->free_page_num = parameter->page_block;	// all pages are free
 	p_block->last_write_page = -1;	// no page has been programmed
-
 	p_block->page_head = (struct page_info *)malloc(parameter->page_block * sizeof(struct page_info));
-	p_block->rber_per_cycle = (double*)malloc(10000 * sizeof(double));
+	//p_block->rber_random_seed = ((double)(rand() % 10000 - 5000)) / 10000000;
 	alloc_assert(p_block->page_head,"p_block->page_head");
-	alloc_assert(p_block->rber_per_cycle, "p_block->rber_per_cycle");
 	memset(p_block->page_head,0,parameter->page_block * sizeof(struct page_info));
 	for(i = 0; i < parameter->page_block; i++)
 	{
 		p_page = &(p_block->page_head[i]);
 		initialize_page(p_page );
-	}
-	double n = ((double)(rand() % 10000 - 5000)) / 10000000;
-	for (i = 0; i < 10000; i++) {
-		p_block->rber_per_cycle[i] = 0.002 + n / 2 + (2.5 + n * 1500) * i * i / 10000000000;
 	}
 	return p_block;
 }
