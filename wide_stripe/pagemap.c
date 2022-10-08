@@ -2211,26 +2211,26 @@ int gc_for_superblock(struct ssd_info* ssd, struct request* req)
 	return SUCCESS;
 }
 
-//struct ssd_info* mark_high_wear_state(struct ssd_info* ssd, int block) {
-//	unsigned int channel, chip, die, plane, page;
-//	for (channel = 0; channel < ssd->parameter->channel_number; channel++) {
-//		for (chip = 0; chip < ssd->parameter->chip_channel[0]; chip++) {
-//			for (die = 0; die < ssd->parameter->die_chip; die++) {
-//				for (plane = 0; plane < ssd->parameter->plane_die; plane++) {
-//					double rand_seed = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].rber_random_seed;
-//					int pe_cycle = ssd->band_head[block].pe_cycle;
-//					double rber = 0.002 + rand_seed / 2 + (2.5 + rand_seed * 1500) * pe_cycle * pe_cycle / 10000000000;
-//					// 出现高磨损块
-//					if (rber >= 0.006) {
-//						// 暂不更改磨损块表，避免条带组织混乱，重新分配时再修改
-//						ssd->band_head[block].advance_gc_flag = 1;
-//					}
-//				}
-//			}
-//		}
-//	}
-//	return ssd;
-//}
+struct ssd_info* mark_high_wear_state(struct ssd_info* ssd, int block) {
+	unsigned int channel, chip, die, plane, page;
+	for (channel = 0; channel < ssd->parameter->channel_number; channel++) {
+		for (chip = 0; chip < ssd->parameter->chip_channel[0]; chip++) {
+			for (die = 0; die < ssd->parameter->die_chip; die++) {
+				for (plane = 0; plane < ssd->parameter->plane_die; plane++) {
+					double rand_seed = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].rber_random_seed;
+					int pe_cycle = ssd->band_head[block].pe_cycle;
+					double rber = 0.002 + rand_seed / 2 + (2.5 + rand_seed * 1500) * pe_cycle * pe_cycle / 10000000000;
+					// 出现高磨损块
+					if (rber >= 0.006) {
+						// 暂不更改磨损块表，避免条带组织混乱，重新分配时再修改
+						ssd->band_head[block].advance_gc_flag = 1;
+					}
+				}
+			}
+		}
+	}
+	return ssd;
+}
 
 int find_superblock_for_gc(struct ssd_info* ssd)
 {

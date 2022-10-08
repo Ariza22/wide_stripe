@@ -207,6 +207,7 @@ struct ssd_info *initiation(struct ssd_info *ssd)
 	ssd->channel_head=(struct channel_info*)malloc(ssd->parameter->channel_number * sizeof(struct channel_info));
 	alloc_assert(ssd->channel_head,"ssd->channel_head");
 	memset(ssd->channel_head,0,ssd->parameter->channel_number * sizeof(struct channel_info));
+	srand((unsigned)time(NULL));
 	initialize_channels(ssd );
 #ifdef USE_EC	
 	//初始化条带
@@ -405,7 +406,7 @@ struct blk_info * initialize_block(struct blk_info * p_block,struct parameter_va
 	p_block->free_page_num = parameter->page_block;	// all pages are free
 	p_block->last_write_page = -1;	// no page has been programmed
 	p_block->page_head = (struct page_info *)malloc(parameter->page_block * sizeof(struct page_info));
-	//p_block->rber_random_seed = ((double)(rand() % 10000 - 5000)) / 10000000;
+	p_block->rber_random_seed = ((double)(rand() % 10000 - 5000)) / 10000000;
 	alloc_assert(p_block->page_head,"p_block->page_head");
 	memset(p_block->page_head,0,parameter->page_block * sizeof(struct page_info));
 	for(i = 0; i < parameter->page_block; i++)
@@ -426,7 +427,6 @@ struct plane_info * initialize_plane(struct plane_info * p_plane,struct paramete
 	p_plane->blk_head = (struct blk_info *)malloc(parameter->block_plane * sizeof(struct blk_info));
 	alloc_assert(p_plane->blk_head,"p_plane->blk_head");
 	memset(p_plane->blk_head,0,parameter->block_plane * sizeof(struct blk_info));
-	srand((unsigned)time(NULL));
 	for(i = 0; i<parameter->block_plane; i++)
 	{
 		p_block = &(p_plane->blk_head[i]);
@@ -530,7 +530,7 @@ struct ssd_info* initialize_band(struct ssd_info *ssd)
 	for(i = 0; i < ssd->band_num; i++){
 		//ssd->band_head[i].ec_modle = rand() % 2 + 1;
 		ssd->band_head[i].ec_modle = 1;
-		ssd->band_head[i].pe_cycle = 0;
+		ssd->band_head[i].pe_cycle = 3200;
 		ssd->band_head[i].advance_gc_flag = 0;
 	}
 	return ssd;

@@ -333,7 +333,7 @@ struct blk_info{
 	unsigned int invalid_page_num;     //记录该块中失效页的个数，同上
 	int last_write_page;               //记录最近一次写操作执行的页数,-1表示该块没有一页被写过
 	struct page_info *page_head;       //记录每一子页的状态
-	//double rber_random_seed;          //记录每个块rber的随机种子
+	double rber_random_seed;          //记录每个块rber的随机种子
 	unsigned int gc_flag ;
 #ifdef BROKEN_BLOCK
 	Status bad_block_flag;			  
