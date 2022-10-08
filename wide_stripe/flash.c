@@ -921,20 +921,24 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 			}
 			}
 		}
+
+		healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
+		healthy_flag = (~(idle_flag | wear_flag | high_wear_flag)) & ((1 << BAND_WITDH) - 1);
 		//没有磨损块时默认选择最后一块健康块作为校验块
 		if (wear_num == 0)
 		{
 			wear_num = 1;
-			for (int i = BAND_WITDH - 1; i >= 0; i--) {
-				if ((healthy_flag | (1 << i)) == healthy_flag) {
-					wear_flag |= 1 << i;
+			int index;
+			for (index = BAND_WITDH - 1; index >= 0; index--) {
+				if ((healthy_flag | (1 << index)) == healthy_flag) {
+					wear_flag |= 1 << index;
 					break;
 				}
 			}
+			healthy_num--;
+			healthy_flag &= ~(1 << index);
 		}
 
-		healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
-		healthy_flag = (~(idle_flag | wear_flag | high_wear_flag)) & ((1 << BAND_WITDH) - 1);
 		// 健康块少于磨损块，无法使用WARD组织，
 		if (healthy_num < wear_num) {
 			// 弃用该超级块，使用下个超级块
