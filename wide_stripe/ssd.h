@@ -30,7 +30,7 @@ unsigned int lpn2ppn(struct ssd_info * ,unsigned int lsn);
 struct ssd_info *distribute(struct ssd_info *);
 void trace_output(struct ssd_info* );
 void statistic_output(struct ssd_info *);
-unsigned int size(unsigned int);
+unsigned int size(unsigned long long);
 unsigned int transfer_size(struct ssd_info *,int,unsigned int,struct request *);
 __int64 find_nearest_event(struct ssd_info *);
 void free_all_node(struct ssd_info *);
@@ -40,8 +40,8 @@ struct ssd_info *no_buffer_distribute(struct ssd_info *);
 unsigned int sub_r_num_for_channel(struct ssd_info *ssd, unsigned int channel);
 unsigned int sub_w_num_for_channel(struct ssd_info *ssd, unsigned int channel);
 
-unsigned int find_first_zero(struct ssd_info *ssd, unsigned int patten);
-unsigned int find_first_one(struct ssd_info* ssd, unsigned int patten);
+unsigned int find_first_zero(struct ssd_info *ssd, unsigned long long patten);
+unsigned int find_first_one(struct ssd_info* ssd, unsigned long long patten);
 
 #ifdef ACTIVE_RECOVERY
 

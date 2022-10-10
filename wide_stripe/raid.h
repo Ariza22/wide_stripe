@@ -2,9 +2,9 @@
 #define __DAID_H__
 
 #define PARITY_SIZE 4
-#define CHANNEL_NUM 2
+#define CHANNEL_NUM 4
 #define MAX_EC_MODLE 4
-#define BAND_WITDH 16
+#define BAND_WITDH 64
 #define SUPERBLOCK_ALLOCTION 2
 
 

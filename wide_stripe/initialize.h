@@ -31,7 +31,7 @@ Zhiming Zhu     2012/07/19        2.1.1         Correct erase_planes()   8128398
 #include "raid.h"
 #include "states.h"
 
-#define SECTOR 512
+#define SECTOR 4096
 #define BUFSIZE 200
 
 #define DYNAMIC_ALLOCATION 0
@@ -177,8 +177,8 @@ struct ssd_info{
 #ifdef USE_EC
 	int band_num;   //总条带数
 	//int current_band; //使用superpage条带组织时，用来记录当前写的条带号
-	int strip_bit;
-	int parity_bit;
+	unsigned long long strip_bit;
+	unsigned long long parity_bit;
 	int current_band[4];    //在写数据页的时候根据分配到的ppn确定当前写入的条带号（原版用page_num来记录条带号是因为raid 5的每个条带的数据块和校验块的个数是一定的，可以直接算出来；另外原版的未考虑当SSD写满时需要写到gc之后的条带中，所以由page_num+1不能表示这种情况）
 	unsigned int strip_bits[4];
 	unsigned int free_superblock_num;
@@ -442,7 +442,6 @@ struct request{
 	__int64 begin_time;
 	__int64 response_time;
 	double energy_consumption;         //记录该请求的能量消耗，单位为uJ
-
 	struct sub_request *subs;          //链接到属于该请求的所有子请求
 	struct request *next_node;         //指向下一个请求结构体
 };
@@ -618,8 +617,8 @@ struct recovery_operation{
 #endif
 	/*以下是被动恢复所需的字段*/
 	int ec_mode; //ec模式，可得到需要多少个通道进行恢复
-	int block_for_recovery; //条带中对应bit为1的块是被选中进行数据恢复的。例如：01011111，需要块号为0-4和6共6个块
-	int sub_r_complete_flag;//当channel_for_recovery==sub_r_complete_flag时，则数据恢复所需的读请求全部处理完，此时可以解码运算求出丢失的数据，并将恢复的数据写入缓存
+	unsigned long long block_for_recovery; //条带中对应bit为1的块是被选中进行数据恢复的。例如：01011111，需要块号为0-4和6共6个块
+	unsigned long long sub_r_complete_flag;//当channel_for_recovery==sub_r_complete_flag时，则数据恢复所需的读请求全部处理完，此时可以解码运算求出丢失的数据，并将恢复的数据写入缓存
 	struct recovery_operation *next_node; //有多个恢复操作
 	struct sub_request *sub;
 	struct request *req;

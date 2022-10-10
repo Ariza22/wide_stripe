@@ -412,7 +412,7 @@ struct blk_info * initialize_block(struct blk_info * p_block,struct parameter_va
 	for(i = 0; i < parameter->page_block; i++)
 	{
 		p_page = &(p_block->page_head[i]);
-		initialize_page(p_page );
+		initialize_page(p_page);
 	}
 	return p_block;
 }
@@ -530,7 +530,7 @@ struct ssd_info* initialize_band(struct ssd_info *ssd)
 	for(i = 0; i < ssd->band_num; i++){
 		//ssd->band_head[i].ec_modle = rand() % 2 + 1;
 		ssd->band_head[i].ec_modle = 1;
-		ssd->band_head[i].pe_cycle = 3200;
+		ssd->band_head[i].pe_cycle = 3400;
 		ssd->band_head[i].advance_gc_flag = 0;
 		ssd->band_head[i].bad_flag = 0;
 	}

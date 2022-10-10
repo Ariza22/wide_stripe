@@ -34,13 +34,12 @@ Zhiming Zhu     2012/07/19        2.1.1         Correct erase_planes()   8128398
 #include "recover.h"
 
 //参数为条带的位图时，返回第一个未写的通道号(从0开始）
-unsigned int find_first_zero(struct ssd_info* ssd, unsigned int patten)
+unsigned int find_first_zero(struct ssd_info* ssd, unsigned long long patten)
 {
-	int index;
 	unsigned int i;
-	for(i = 0; i < 32; i++)
+	for(i = 0; i < 64; i++)
 	{        
-		if((patten & 0x01) == 0)
+		if((patten & 1ll) == 0)
 		{
 			break;
 		}
@@ -49,13 +48,12 @@ unsigned int find_first_zero(struct ssd_info* ssd, unsigned int patten)
 	return i;
 }
 
-unsigned int find_first_one(struct ssd_info* ssd, unsigned int patten)
+unsigned int find_first_one(struct ssd_info* ssd, unsigned long long patten)
 {
-	int index;
 	unsigned int i;
-	for (i = 0; i < 32; i++)
+	for (i = 0; i < 64; i++)
 	{
-		if ((patten | 0x01) == patten)
+		if ((patten | 1ll) == patten)
 		{
 			break;
 		}
@@ -523,8 +521,6 @@ struct ssd_info *buffer_management(struct ssd_info *ssd)
 	
 	new_request=ssd->request_tail;
 	lsn=new_request->lsn;
-	if (lsn == 1090464)
-		printf("yes");
 	lpn=new_request->lsn/ssd->parameter->subpage_page;
 	last_lpn=(new_request->lsn+new_request->size-1)/ssd->parameter->subpage_page;
 	first_lpn=new_request->lsn/ssd->parameter->subpage_page;
@@ -532,7 +528,6 @@ struct ssd_info *buffer_management(struct ssd_info *ssd)
 	new_request->need_distr_flag=(unsigned int*)malloc(sizeof(unsigned int)*((last_lpn-first_lpn+1)*ssd->parameter->subpage_page/32+1));
 	alloc_assert(new_request->need_distr_flag,"new_request->need_distr_flag");
 	memset(new_request->need_distr_flag, 0, sizeof(unsigned int)*((last_lpn-first_lpn+1)*ssd->parameter->subpage_page/32+1));
-	
 	if(new_request->operation==READ) 
 	{		
 		while(lpn<=last_lpn)      		
@@ -888,7 +883,7 @@ void trace_output(struct ssd_info* ssd) {
 				}
 				fprintf(ssd->outputfile, "%16I64u %10u %6u %2u %16I64u %16I64u %10I64u\n", req->time, req->lsn, req->size, req->operation, start_time, end_time, end_time - req->time);
 				fflush(ssd->outputfile);
-
+			
 				if (end_time - start_time == 0)
 				{
 					printf("the response time is 0?? \n");
@@ -1145,14 +1140,14 @@ void statistic_output(struct ssd_info *ssd)
 /***********************************************************************************
 *根据每一页的状态计算出每一需要处理的子页的数目，也就是一个子请求需要处理的子页的页数
 ************************************************************************************/
-unsigned int size(unsigned int stored)
+unsigned int size(unsigned long long stored)
 {
-	unsigned int i, total = 0, mask = 0x1;
+	unsigned int i, total = 0, mask = 1ll;
 
 	#ifdef DEBUG
 	printf("enter size\n");
 	#endif
-	for(i=1;i<=32;i++)
+	for(i=1;i<=64;i++)
 	{
 		if(stored & mask) 
 			total++;

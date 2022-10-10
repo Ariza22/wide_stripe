@@ -49,7 +49,7 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 	unsigned int plane_die, plane_chip, plane_channel;
 	struct channel_info *channel = NULL;
 	unsigned int first_parity;
-	unsigned int mask = 0;
+	unsigned long long mask = 0;
 	unsigned int channel_id, chip_id, die_id, plane_id, block_id, page_id;
 	fault_ppn = sub->ppn;
 	fault_channel = sub->location->channel;
@@ -84,7 +84,7 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 
 	// 读取磨损块表
 	int wear_num = 0, high_wear_num = 0, idle_num = 0, healthy_num = 0;
-	unsigned int wear_flag = 0, high_wear_flag = 0, idle_flag = 0, healthy_flag = 0;
+	unsigned long long wear_flag = 0, high_wear_flag = 0, idle_flag = 0, healthy_flag = 0;
 
 	for (int i = 0; i < BAND_WITDH; i++)
 	{
@@ -92,39 +92,42 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 		case 1:
 		{
 			wear_num++;
-			wear_flag |= 1 << i;
+			wear_flag |= 1ll << i;
 		}
 		case 2:
 		{
 			high_wear_num++;
-			high_wear_flag |= 1 << i;
+			high_wear_flag |= 1ll << i;
 		}
 		case 3:
 		{
 			idle_num++;
-			idle_flag |= 1 << i;
+			idle_flag |= 1ll << i;
 		}
 		}
 	}
+
+	healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
+	healthy_flag = ~(idle_flag | wear_flag | high_wear_flag);
 
 	//没有磨损块时默认选择最后一块作为校验块
 	if (wear_num == 0)
 	{
 		wear_num = 1;
-		for (int i = BAND_WITDH - 1; i >= 0; i--) {
-			if ((high_wear_flag | (1 << i) != high_wear_flag) && (idle_flag | (1 << i) != idle_flag)) {
-				wear_flag |= 1 << i;
+		int index;
+		for (index = BAND_WITDH - 1; index >= 0; index--) {
+			if ((high_wear_flag | (1ll << index) != high_wear_flag) && (idle_flag | (1ll << index) != idle_flag)) {
+				wear_flag |= 1ll << index;
 				break;
 			}
 		}
+		healthy_num--;
+		healthy_flag &= ~(1ll << index);
 	}
-
-	healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
-	healthy_flag = (~(idle_flag | wear_flag | high_wear_flag)) & ((1 << BAND_WITDH) - 1);
 
 	int band_id = -1;
 	int error_page_num = 1;
-	int band_flag = healthy_flag | wear_flag;
+	unsigned long long band_flag = healthy_flag | wear_flag;
 	int band_width = 0; //损坏块所处条带长度
 	int now_length = healthy_num + wear_num; //高磨损块不参与条带组织
 	for (int i = 0; i < wear_num; i++) {
@@ -134,7 +137,7 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 		for (int j = 0; j < band_width; j++) {
 			//寻找该损坏块位于哪个条带
 			int pos = find_first_one(ssd, band_flag);
-			band_flag &= ~(1 << pos);
+			band_flag &= ~(1ll << pos);
 			if (fault_pos == pos) {
 				band_id = i;
 				continue;
@@ -149,7 +152,7 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 				error_page_num++;//统计条带中出错总个数
 			}
 			//mask存放需要读取的幸存块块号
-			rec_node->block_for_recovery |= 1 << pos;
+			rec_node->block_for_recovery |= 1ll << pos;
 		}
 		if (band_id != -1) {
 			break;
@@ -180,7 +183,7 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 	for(i = 0; i < band_width - error_page_num; i++)
 	{
 		pos = find_first_one(ssd, mask);
-		mask &= ~(1 << pos);
+		mask &= ~(1ll << pos);
 		//pos = (fault_pos + 1 + i) % BAND_WITDH;
 		sub_r = (struct sub_request *)malloc(sizeof(struct sub_request));
 		alloc_assert(sub_r,"sub_r");
@@ -265,7 +268,7 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 			sub->next_state_predict_time = ssd->current_time + 1000;
 			sub_r->complete_time = ssd->current_time + 1000;
 
-			rec_node->sub_r_complete_flag |= 1 << pos;
+			rec_node->sub_r_complete_flag |= 1ll << pos;
 			//printf("broken_lpn = %d\trecovery_lpn = %d\tblock_for_recovery = %d\tcomplete_flag = %d\n", rec_node->sub->lpn, sub_r->lpn, rec_node->block_for_recovery, rec_node->sub_r_complete_flag);
 			//printf("sub_r_complete = %d\tchannel_for_recovery = %d\n", recovery_node->sub_r_complete_flag, recovery_node->channel_for_recovery);
 			if(rec_node->sub_r_complete_flag == rec_node->block_for_recovery) //如果当前恢复操作所需的读请求都完成了，则进行解码恢复，并将恢复的闪存页写入缓存

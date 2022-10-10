@@ -871,7 +871,7 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 	unsigned int pos; 
 
 	int wear_num, high_wear_num, idle_num, healthy_num;
-	unsigned int wear_flag, high_wear_flag, idle_flag, healthy_flag;
+	unsigned long long wear_flag, high_wear_flag, idle_flag, healthy_flag;
 
 	//获取将要写的条带的ec模式
 	while (1) {
@@ -906,13 +906,13 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 			case 1:
 			{
 				wear_num++;
-				wear_flag |= 1 << i;
+				wear_flag |= 1ll << i;
 				break;
 			}
 			case 2:
 			{
 				high_wear_num++;
-				high_wear_flag |= 1 << i;
+				high_wear_flag |= 1ll << i;
 				// 高磨损块不予分配，成为闲置块
 				ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 3;
 				break;
@@ -920,7 +920,7 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 			case 3:
 			{
 				idle_num++;
-				idle_flag |= 1 << i;
+				idle_flag |= 1ll << i;
 				break;
 			}
 			default: {
@@ -929,22 +929,21 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 		}
 
 		healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
-		healthy_flag = (~(idle_flag | wear_flag | high_wear_flag)) & ((1 << BAND_WITDH) - 1);
+		healthy_flag = ~(idle_flag | wear_flag | high_wear_flag);
 		//没有磨损块时默认选择最后一块健康块作为校验块
 		if (wear_num == 0)
 		{
 			wear_num = 1;
 			int index;
 			for (index = BAND_WITDH - 1; index >= 0; index--) {
-				if ((healthy_flag | (1 << index)) == healthy_flag) {
-					wear_flag |= 1 << index;
+				if ((healthy_flag | (1ll << index)) == healthy_flag) {
+					wear_flag |= 1ll << index;
 					break;
 				}
 			}
 			healthy_num--;
-			healthy_flag &= ~(1 << index);
+			healthy_flag &= ~(1ll << index);
 		}
-
 		// 健康块少于磨损块，无法使用WARD组织，
 		if (healthy_num < wear_num) {
 			// 弃用该超级块，使用下个超级块
@@ -956,6 +955,15 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 		break;
 	}
 
+	FILE* fp = fopen("wear_state.txt", "a");
+	if (fp == NULL)
+	{
+		printf("open wear_state falided\n");
+		return;
+	}
+	fprintf(fp, "num:%d\t%d\t%d\t%d\t%d\n",active_superblock, healthy_num, wear_num, high_wear_num, idle_num);
+	fclose(fp);
+
 	int now_length = healthy_num + wear_num; //高磨损块不参与条带组织
 	for (int i = 0; i < wear_num; i++) {
 		int parity_state = 0;
@@ -964,7 +972,7 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 		now_length -= band_width;
 		for (int j = 0; j < band_width - 1; j++) {
 			int pos = find_first_one(ssd, healthy_flag);
-			healthy_flag &= ~(1 << pos);
+			healthy_flag &= ~(1ll << pos);
 
 			pt = ssd->dram->buffer->buffer_tail;
 			//从二叉树中删除该节点
@@ -995,7 +1003,7 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 			//修改buffer中的缓冲区缓存的sector数
 		}
 		int parity_pos = find_first_one(ssd, wear_flag);
-		wear_flag &= ~(1 << parity_pos);
+		wear_flag &= ~(1ll << parity_pos);
 		ssd->dram->superpage_buffer[parity_pos].lpn = -2;
 		ssd->dram->superpage_buffer[parity_pos].size = size(parity_state);
 		ssd->dram->superpage_buffer[parity_pos].state = parity_state;
@@ -1027,11 +1035,11 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 	}
 
 	//为整个超级页创建请求
-	int write_flag = idle_flag | high_wear_flag;
+	unsigned long long write_flag = idle_flag | high_wear_flag;
 	for(i = 0; i < wear_num + healthy_num; i++)
 	{
 		int write_pos = find_first_zero(ssd, write_flag);
-		write_flag |= 1 << write_pos;
+		write_flag |= 1ll << write_pos;
 		sub_req=NULL;
 		sub_req_state = ssd->dram->superpage_buffer[write_pos].state;
 		sub_req_size = ssd->dram->superpage_buffer[write_pos].size;
@@ -1071,6 +1079,7 @@ struct ssd_info* update_block_wear_state(struct ssd_info* ssd, int active_superb
 					else if (rber >= 0.006) {
 						if (ssd->dram->wear_map->wear_map_entry[block_id].wear_state <= 1)
 							ssd->dram->wear_map->wear_map_entry[block_id].wear_state = 2;
+						ssd->band_head[active_superblock].bad_flag = 1;
 					}
 					
 				}
@@ -1944,9 +1953,10 @@ Status services_2_r_cmd_trans_and_complete(struct ssd_info * ssd)
 {
 	unsigned int i=0;
 	struct sub_request * sub=NULL, * p=NULL;
+	int delete_flag = 0;
 #ifdef RECOVERY
 	struct recovery_operation* rec = NULL;
-	unsigned int flag, delete_flag = 0;
+	unsigned int flag;
 	long long recovery_time;
 	unsigned int pos;
 #ifdef ACTIVE_RECOVERY
@@ -3293,8 +3303,6 @@ struct ssd_info *dynamic_advanced_process(struct ssd_info *ssd,unsigned int chan
 			{
 				sub_count_interleave++;
 				subs[count++] = d_sub;
-				if (d_sub->location->plane == 15)
-					printf("error\n");
 				NAND_write(ssd, d_sub);
 				if (d_sub->lpn != -2) {
 					ssd->dram->map->map_entry[d_sub->lpn].pn = d_sub->ppn;
@@ -3988,10 +3996,9 @@ struct ssd_info* process(struct ssd_info* ssd)
 	}
 
 	time = ssd->current_time;
-	if (ssd->channel_head[1].subs_r_head == NULL && ssd->channel_head[1].subs_r_tail != NULL)
-		printf("yes");
 	services_2_r_cmd_trans_and_complete(ssd);                                            /*处理当前状态是SR_R_C_A_TRANSFER或者当前状态是SR_COMPLETE，或者下一状态是SR_COMPLETE并且下一状态预计时间小于当前状态时间*/
-
+	if(time == 16640358734085900)
+		printf("yes");
 	random_num = ssd->program_count % ssd->parameter->channel_number;                        /*产生一个随机数，保证每次从不同的channel开始查询*/
 
 	/*****************************************
@@ -5789,7 +5796,7 @@ struct ssd_info *compute_serve_time(struct ssd_info *ssd,unsigned int channel,un
 				subs[i]->current_state=SR_W_TRANSFER;
 				subs[i]->current_time=ssd->current_time;
 				subs[i]->next_state=SR_COMPLETE;
-				subs[i]->next_state_predict_time=ssd->current_time+7*ssd->parameter->time_characteristics.tWC+(subs[i]->size*ssd->parameter->subpage_capacity)*ssd->parameter->time_characteristics.tWC;
+				subs[i]->next_state_predict_time=ssd->current_time+7*ssd->parameter->time_characteristics.tWC+(subs[i]->size*ssd->parameter->subpage_capacity)*ssd->parameter->time_characteristics.tWC + ssd->parameter->time_characteristics.tPROG;
 				if(subs[i]->lpn == -2)
 				{
 #ifdef CALCULATION
@@ -5804,15 +5811,16 @@ struct ssd_info *compute_serve_time(struct ssd_info *ssd,unsigned int channel,un
 				//delete_from_channel(ssd,channel,subs[i]);
 			}
 		}
-		ssd->channel_head[channel].current_state=CHANNEL_TRANSFER;										
-		ssd->channel_head[channel].current_time=ssd->current_time;										
-		ssd->channel_head[channel].next_state=CHANNEL_IDLE;										
-		ssd->channel_head[channel].next_state_predict_time=last_sub->complete_time;
 
 		ssd->channel_head[channel].chip_head[chip].current_state=CHIP_WRITE_BUSY;										
 		ssd->channel_head[channel].chip_head[chip].current_time=ssd->current_time;									
 		ssd->channel_head[channel].chip_head[chip].next_state=CHIP_IDLE;										
-		ssd->channel_head[channel].chip_head[chip].next_state_predict_time=ssd->channel_head[channel].next_state_predict_time+ssd->parameter->time_characteristics.tPROG;	
+		ssd->channel_head[channel].chip_head[chip].next_state_predict_time= last_sub->complete_time;
+
+		ssd->channel_head[channel].current_state = CHANNEL_TRANSFER;
+		ssd->channel_head[channel].current_time = ssd->current_time;
+		ssd->channel_head[channel].next_state = CHANNEL_IDLE;
+		ssd->channel_head[channel].next_state_predict_time = ssd->channel_head[channel].chip_head[chip].next_state_predict_time - ssd->parameter->time_characteristics.tPROG;
 	}
 	else if(command==TWO_PLANE)
 	{

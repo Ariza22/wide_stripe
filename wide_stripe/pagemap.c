@@ -319,7 +319,7 @@ unsigned int pre_process_for_read_request(struct ssd_info* ssd, unsigned int lsn
 	int current_superpage = 0;
 	unsigned int first_parity;
 	unsigned int full_page, pos;
-	full_page = ~(0xffffffff << (ssd->parameter->subpage_page));
+	full_page = ~(0xffffffffffffffff << (ssd->parameter->subpage_page));
 	lpn = lsn / ssd->parameter->subpage_page;
 	// 在channel0，chip0，die0，plane0中寻找是否存在活跃超级块
 	if (find_superblock_for_pre_read(ssd, 0, 0, 0, 0) == FAILURE)
@@ -351,7 +351,7 @@ unsigned int pre_process_for_read_request(struct ssd_info* ssd, unsigned int lsn
 		for (i = 0; i < BAND_WITDH - ec_mode; i++)
 		{
 			pos = find_first_zero(ssd, ssd->parity_bit);
-			ssd->parity_bit |= 1 << pos;
+			ssd->parity_bit |= 1ll << pos;
 			parity_state |= ssd->dram->superpage_buffer[pos].state;
 		}
 		//产生校验数据
@@ -2198,6 +2198,7 @@ int gc_for_superblock(struct ssd_info* ssd, struct request* req)
 		getchar();
 		return FAILURE;
 	}
+	ouput_bad_block(ssd);
 	//处理该superblock中的有效数据，（读，写）
 	gc_subpage_num = process_for_gc(ssd, req, gc_superblock_number);
 
@@ -2225,6 +2226,7 @@ struct ssd_info* mark_high_wear_state(struct ssd_info* ssd, int block) {
 						// 暂不更改磨损块表，避免条带组织混乱，重新分配时再修改
 						ssd->band_head[block].bad_flag = 1;
 						ssd->band_head[block].advance_gc_flag = 1;
+						return ssd;
 					}
 				}
 			}
