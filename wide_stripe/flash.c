@@ -898,33 +898,29 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 		healthy_flag = 0;
 		for (int i = 0; i < BAND_WITDH; i++)
 		{
-			/*if (i == 5 || i == 7)
-				ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 1;
-			else if(i == 11)
-				ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 2;*/
 			switch (ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state) {
-			case 1:
-			{
-				wear_num++;
-				wear_flag |= 1ll << i;
-				break;
-			}
-			case 2:
-			{
-				high_wear_num++;
-				high_wear_flag |= 1ll << i;
-				// ¸ßÄ¥Ëð¿é²»Óè·ÖÅä£¬³ÉÎªÏÐÖÃ¿é
-				ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 3;
-				break;
-			}
-			case 3:
-			{
-				idle_num++;
-				idle_flag |= 1ll << i;
-				break;
-			}
-			default: {
-			}
+				case 1:
+				{
+					wear_num++;
+					wear_flag |= 1ll << i;
+					break;
+				}
+				case 2:
+				{
+					high_wear_num++;
+					high_wear_flag |= 1ll << i;
+					// ¸ßÄ¥Ëð¿é²»Óè·ÖÅä£¬³ÉÎªÏÐÖÃ¿é
+					ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 3;
+					break;
+				}
+				case 3:
+				{
+					idle_num++;
+					idle_flag |= 1ll << i;
+					break;
+				}
+				default: {
+				}
 			}
 		}
 
@@ -1311,8 +1307,6 @@ struct sub_request *creat_read_sub_request(struct ssd_info *ssd, unsigned int lp
 	sub->type = FAULT_SUB;
 	if(req != NULL)
 	{
-		if (sub->lpn == 3722304989)
-			printf("yes");
 		sub->next_subs = req->subs;
 		req->subs = sub;
 	}
