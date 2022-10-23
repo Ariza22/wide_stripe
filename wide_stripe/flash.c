@@ -3991,8 +3991,6 @@ struct ssd_info* process(struct ssd_info* ssd)
 
 	time = ssd->current_time;
 	services_2_r_cmd_trans_and_complete(ssd);                                            /*处理当前状态是SR_R_C_A_TRANSFER或者当前状态是SR_COMPLETE，或者下一状态是SR_COMPLETE并且下一状态预计时间小于当前状态时间*/
-	if(time == 16640358734085900)
-		printf("yes");
 	random_num = ssd->program_count % ssd->parameter->channel_number;                        /*产生一个随机数，保证每次从不同的channel开始查询*/
 
 	/*****************************************

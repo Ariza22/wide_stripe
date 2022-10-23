@@ -89,21 +89,27 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 	for (int i = 0; i < BAND_WITDH; i++)
 	{
 		switch (ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + fault_superblock].wear_state) {
-		case 1:
-		{
-			wear_num++;
-			wear_flag |= 1ll << i;
-		}
-		case 2:
-		{
-			high_wear_num++;
-			high_wear_flag |= 1ll << i;
-		}
-		case 3:
-		{
-			idle_num++;
-			idle_flag |= 1ll << i;
-		}
+			case 1:
+			{
+				wear_num++;
+				wear_flag |= 1ll << i;
+				break;
+			}
+			case 2:
+			{
+				high_wear_num++;
+				high_wear_flag |= 1ll << i;
+				break;
+			}
+			case 3:
+			{
+				idle_num++;
+				idle_flag |= 1ll << i;
+				break;
+			}
+			default:{
+
+			}
 		}
 	}
 
@@ -378,8 +384,6 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 struct ssd_info *write_recovery_page(struct ssd_info *ssd, struct recovery_operation *rec, long long recovery_time)
 {
 	struct sub_request *sub = NULL;
-	if (rec->sub->lpn == 272565)
-		printf("yes");
 	ssd->dram->map->map_entry[rec->sub->lpn].pn = -1;
 	ssd->dram->map->map_entry[rec->sub->lpn].state = 0;
 	ssd->recovery_page_num++;
