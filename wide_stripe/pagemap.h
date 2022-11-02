@@ -45,7 +45,6 @@ int gc_for_channel(struct ssd_info *ssd, unsigned int channel);
 int delete_gc_node(struct ssd_info *ssd, unsigned int channel,struct gc_operation *gc_node);
 /*superblock GC*/
 int gc_for_superblock(struct ssd_info *ssd, struct request *req);
-struct ssd_info* mark_high_wear_state(struct ssd_info* ssd, int block);
 int find_superblock_for_gc(struct ssd_info *ssd);
 int process_for_gc(struct ssd_info *ssd, struct request *req, unsigned int block);
 /*end superblock GC*/
