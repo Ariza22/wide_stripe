@@ -116,24 +116,24 @@ void main()
 	/*恢复操作相关测试*/
 #ifdef RECOVERY
 	printf("bad_page = %d\trecovery_page = %d\n", ssd->broken_page, ssd->recovery_page_num);
-	//剩余的恢复操作节点的个数
-	recovery_num = get_recovery_node_num(ssd);
-	printf("the recovery node number is %d\n", recovery_num);
-	//剩余的恢复操作对应的恢复信息（恢复需要的读标志、已读标志）
-	rec = ssd->recovery_head;
-	if (rec == NULL)
-	{
-		printf("All broken pages have been recovered already\n");
-	}
-	else
-	{
-		while (rec != NULL)
-		{
-			printf("block_for_recovery = %d\tcomplete_flag = %d\n", rec->block_for_recovery, rec->sub_r_complete_flag);
-			rec = rec->next_node;
-		}
-		printf("\n");
-	}
+	////剩余的恢复操作节点的个数
+	//recovery_num = get_recovery_node_num(ssd);
+	//printf("the recovery node number is %d\n", recovery_num);
+	////剩余的恢复操作对应的恢复信息（恢复需要的读标志、已读标志）
+	//rec = ssd->recovery_head;
+	//if (rec == NULL)
+	//{
+	//	printf("All broken pages have been recovered already\n");
+	//}
+	//else
+	//{
+	//	while (rec != NULL)
+	//	{
+	//		printf("block_for_recovery = %d\tcomplete_flag = %d\n", rec->block_for_recovery, rec->sub_r_complete_flag);
+	//		rec = rec->next_node;
+	//	}
+	//	printf("\n");
+	//}
 #endif
 	//各通道剩余的读写子请求的个数
 	for(i = 0; i <ssd->parameter->channel_number; i++)

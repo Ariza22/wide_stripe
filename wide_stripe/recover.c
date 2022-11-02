@@ -41,16 +41,18 @@ Status is_same_superpage(struct sub_request *sub0, struct sub_request *sub1)
 
 struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct sub_request *sub, struct request *req)
 {
-	unsigned int fault_ppn, fault_channel, fault_superblock, fault_pos, fault_size; //fault_*代表发生页错误的相关信息
+	unsigned int fault_ppn, fault_channel, fault_superblock, fault_pos; //fault_*代表发生页错误的相关信息
 	int ec_mode;
-	struct recovery_operation *rec_node = NULL;
+	struct recovery_operation* rec_node = NULL;
 	unsigned int i, pos, flag;
-	struct sub_request *sub_r = NULL, *sub_r_head = NULL;
+	struct sub_request* sub_r = NULL, * sub_r_head = NULL;
 	unsigned int plane_die, plane_chip, plane_channel;
-	struct channel_info *channel = NULL;
+	struct channel_info* channel = NULL;
 	unsigned int first_parity;
-	unsigned long long mask = 0;
-	unsigned int channel_id, chip_id, die_id, plane_id, block_id, page_id;
+	int mask = 0;
+	if (sub->lpn == 1905277)
+		printf("1905277\n");
+
 	fault_ppn = sub->ppn;
 	fault_channel = sub->location->channel;
 	fault_superblock = get_band_id_from_ppn(ssd, fault_ppn);
@@ -59,17 +61,17 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 #ifdef RECOVERY
 	ssd->broken_page++;
 #endif
-	if(ec_mode == 0)
+	if (ec_mode == 0)
 	{
 		printf("Can't recover the page!\n");
 		getchar();
 		return NULL;
 	}
 
-	rec_node = (struct recovery_operation *)malloc(sizeof(struct recovery_operation));
+	rec_node = (struct recovery_operation*)malloc(sizeof(struct recovery_operation));
 	alloc_assert(rec_node, "rec_node");
 	memset(rec_node, 0, sizeof(struct recovery_operation));
-	if(rec_node == NULL)
+	if (rec_node == NULL)
 	{
 		return NULL;
 	}
@@ -78,226 +80,16 @@ struct ssd_info *creat_read_sub_for_recover_page(struct ssd_info *ssd, struct su
 	rec_node->ec_mode = ec_mode;
 	rec_node->next_node = NULL;
 
-	plane_die = ssd->parameter->plane_die;
-	plane_chip = plane_die * ssd->parameter->die_chip;
-	plane_channel = plane_chip * ssd->parameter->chip_channel[0];
-
-	// 读取磨损块表
-	int wear_num = 0, high_wear_num = 0, idle_num = 0, healthy_num = 0;
-	unsigned long long wear_flag = 0, high_wear_flag = 0, idle_flag = 0, healthy_flag = 0;
-
-	for (int i = 0; i < BAND_WITDH; i++)
+	first_parity = BAND_WITDH - (((sub->location->page + 1) * ec_mode) % BAND_WITDH); //找出第一个校验的位置
+	//设置恢复所需条带中其他幸存块的标记
+	//mask == 1表示不用于恢复
+	mask |= 1 << fault_pos;
+	for (i = first_parity + 1; i < first_parity + ec_mode; i++)
 	{
-		switch (ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + fault_superblock].wear_state) {
-			case 1:
-			{
-				wear_num++;
-				wear_flag |= 1ll << i;
-				break;
-			}
-			case 2:
-			{
-				high_wear_num++;
-				high_wear_flag |= 1ll << i;
-				break;
-			}
-			case 3:
-			{
-				idle_num++;
-				idle_flag |= 1ll << i;
-				break;
-			}
-			default:{
-
-			}
-		}
+		mask |= (1 << (i % BAND_WITDH));
 	}
+	rec_node->block_for_recovery = (~mask) & 0x0ffff;
 
-	healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
-	healthy_flag = ~(idle_flag | wear_flag | high_wear_flag);
-
-	//没有磨损块时默认选择最后一块作为校验块
-	if (wear_num == 0)
-	{
-		wear_num = 1;
-		int index;
-		for (index = BAND_WITDH - 1; index >= 0; index--) {
-			if ((high_wear_flag | (1ll << index) != high_wear_flag) && (idle_flag | (1ll << index) != idle_flag)) {
-				wear_flag |= 1ll << index;
-				break;
-			}
-		}
-		healthy_num--;
-		healthy_flag &= ~(1ll << index);
-	}
-
-	int band_id = -1;
-	int error_page_num = 1;
-	unsigned long long band_flag = healthy_flag | wear_flag;
-	int band_width = 0; //损坏块所处条带长度
-	int now_length = healthy_num + wear_num; //高磨损块不参与条带组织
-	for (int i = 0; i < wear_num; i++) {
-		int parity_state = 0;
-		band_width = (now_length + wear_num - i - 1) / (wear_num - i); // 向上取整
-		now_length -= band_width;
-		for (int j = 0; j < band_width; j++) {
-			//寻找该损坏块位于哪个条带
-			int pos = find_first_one(ssd, band_flag);
-			band_flag &= ~(1ll << pos);
-			if (fault_pos == pos) {
-				band_id = i;
-				continue;
-			}
-			channel_id = pos / plane_channel;
-			chip_id = (pos % plane_channel) / plane_chip;
-			die_id = (pos % plane_chip) / plane_die;
-			plane_id = pos % plane_die;
-			block_id = rec_node->sub->location->block;
-			page_id = rec_node->sub->location->page;
-			if (ssd->channel_head[channel_id].chip_head[chip_id].die_head[die_id].plane_head[plane_id].blk_head[block_id].page_head[page_id].bad_page_flag == TRUE) {
-				error_page_num++;//统计条带中出错总个数
-			}
-			//mask存放需要读取的幸存块块号
-			rec_node->block_for_recovery |= 1ll << pos;
-		}
-		if (band_id != -1) {
-			break;
-		}else {
-			error_page_num = 1;
-			rec_node->block_for_recovery = 0;
-		}
-	}
-
-	if (band_id == -1) {
-		printf("error, cannot find the broken page.");
-		return ssd;
-	}
-
-	if (error_page_num > 1) {
-		printf("error, cannot recover the broken page.");
-		return ssd;
-	}
-
-	/*for(i = 0; i < BAND_WITDH - ec_mode; i++)
-	{
-	rec_node->block_for_recovery  += 1 << ((fault_pos + 1 + i) % BAND_WITDH);
-	}*/
-
-	mask = rec_node->block_for_recovery;
-
-	//将恢复所需的请求挂到相应的通道上
-	for(i = 0; i < band_width - error_page_num; i++)
-	{
-		pos = find_first_one(ssd, mask);
-		mask &= ~(1ll << pos);
-		//pos = (fault_pos + 1 + i) % BAND_WITDH;
-		sub_r = (struct sub_request *)malloc(sizeof(struct sub_request));
-		alloc_assert(sub_r,"sub_r");
-		memset(sub_r,0,sizeof(struct sub_request));
-		if(sub_r == NULL)
-		{
-			return NULL;
-		}
-
-		sub_r->next_node = NULL;
-		sub_r->next_subs = NULL;
-		sub_r->update = NULL;
-		sub_r->location = NULL;
-		//sub的location参数
-		sub_r->location = (struct local *)malloc(sizeof(struct local));
-		alloc_assert(sub_r->location, "sub_r->location");
-		memset(sub_r->location, 0, sizeof(struct local));
-		if(sub_r->location == NULL)
-		{
-			return NULL;
-		}
-		sub_r->location->channel = pos / plane_channel;
-		sub_r->location->chip = (pos % plane_channel) / plane_chip;
-		sub_r->location->die = (pos % plane_chip) / plane_die;
-		sub_r->location->plane = pos % plane_die;
-		sub_r->location->block = rec_node->sub->location->block;
-		sub_r->location->page = rec_node->sub->location->page;
-		//sub的其他参数
-		sub_r->begin_time = ssd->current_time;
-		sub_r->current_state = SR_WAIT;
-		sub_r->current_time = 0x7fffffffffffffff;
-		sub_r->next_state = SR_R_C_A_TRANSFER;
-		sub_r->next_state_predict_time = 0x7fffffffffffffff;
-		sub_r->operation = READ;
-		sub_r->size = sub->size;                                                               
-		sub_r->state = sub->state;
-		sub_r->type = RECOVER_SUB;
-		sub_r->lpn = ssd->channel_head[sub_r->location->channel].chip_head[sub_r->location->chip].die_head[sub_r->location->die].plane_head[sub_r->location->plane].blk_head[sub_r->location->block].page_head[sub_r->location->page].lpn; //需要读取的页的lpn
-		sub_r->ppn = find_ppn(ssd, sub_r->location->channel, sub_r->location->chip, sub_r->location->die, sub_r->location->plane, sub_r->location->block, sub_r->location->page);
-		//if(sub_r->lpn == -2)
-		//	sub_r->ppn = find_ppn(ssd, sub_r->location->channel, sub_r->location->chip, sub_r->location->die, sub_r->location->plane, sub_r->location->block, sub_r->location->page);
-		//else
-		//	sub_r->ppn = ssd->dram->map->map_entry[sub_r->lpn].pn;   //需要读取的ppn
-		//由于req读取page时发生降级读，则将产生的降级读子请求添加到req的子请求队列中
-		if(req != NULL)
-		{
-			sub_r->next_subs = req->subs;
-			req->subs = sub_r;
-		}
-
-		//在通道队列中添加该请求，添加前需先判断读子请求队列中是否包含该请求，若包含直接将新的请求设置为完成，否则添加到读子请求队列中
-		channel = &ssd->channel_head[sub_r->location->channel];
-		sub_r_head = channel->subs_r_head;
-		flag = 0;
-		while(sub_r_head != NULL)
-		{
-			if(sub_r_head->ppn == sub_r->ppn)
-			{
-				flag = 1;
-				break;
-			}
-			sub_r_head = sub_r_head->next_node;
-		}
-		if(flag == 0) //在该通道的读子请求队列中未找到相同的请求
-		{
-			if(channel->subs_r_head != NULL){
-				channel->subs_r_tail->next_node = sub_r;
-				channel->subs_r_tail = sub_r;
-			}
-			else
-			{
-				channel->subs_r_head = sub_r;
-				channel->subs_r_tail = sub_r;
-			}
-			ssd->read_sub_request++;
-		}
-		else
-		{
-			sub_r->current_state = SR_R_DATA_TRANSFER;
-			sub_r->current_time = ssd->current_time;
-			sub_r->next_state = SR_COMPLETE;
-			sub->next_state_predict_time = ssd->current_time + 1000;
-			sub_r->complete_time = ssd->current_time + 1000;
-
-			rec_node->sub_r_complete_flag |= 1ll << pos;
-			//printf("broken_lpn = %d\trecovery_lpn = %d\tblock_for_recovery = %d\tcomplete_flag = %d\n", rec_node->sub->lpn, sub_r->lpn, rec_node->block_for_recovery, rec_node->sub_r_complete_flag);
-			//printf("sub_r_complete = %d\tchannel_for_recovery = %d\n", recovery_node->sub_r_complete_flag, recovery_node->channel_for_recovery);
-			if(rec_node->sub_r_complete_flag == rec_node->block_for_recovery) //如果当前恢复操作所需的读请求都完成了，则进行解码恢复，并将恢复的闪存页写入缓存
-			{
-				printf("2..................................................................Write recovered data to the cache!\n\n");
-				//将恢复节点加入恢复队列尾部
-				if (ssd->recovery_head == NULL)
-				{
-					ssd->recovery_head = rec_node;
-					ssd->recovery_tail = rec_node;
-				}
-				else
-				{
-					ssd->recovery_tail->next_node = rec_node;
-					ssd->recovery_tail = rec_node;
-				}
-				write_recovery_page(ssd, rec_node, sub_r->complete_time + 20000);
-				return ssd;
-				//write_recovery_page(ssd, rec_node->sub->lpn, rec_node->sub->state, sub_r->complete_time + 20000);
-				//ssd->recovery_page_num++;
-			}
-		}
-	}
 	//将恢复节点加入恢复队列尾部
 	if (ssd->recovery_head == NULL)
 	{

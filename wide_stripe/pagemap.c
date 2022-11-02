@@ -318,129 +318,65 @@ unsigned int pre_process_for_read_request(struct ssd_info* ssd, unsigned int lsn
 	unsigned int parity_state = 0;
 	int current_superpage = 0;
 	unsigned int first_parity;
-	unsigned int full_page, pos;
-	full_page = ~(0xffffffffffffffff << (ssd->parameter->subpage_page));
+	unsigned int full_page;
+	full_page = ~(0xffffffff << (ssd->parameter->subpage_page));
 	lpn = lsn / ssd->parameter->subpage_page;
-	int wear_num, high_wear_num, idle_num, healthy_num;
-	unsigned long long wear_flag, high_wear_flag, idle_flag, healthy_flag;
-	while (1) {
-		// 在channel0，chip0，die0，plane0中寻找是否存在活跃超级块
-		if (find_superblock_for_pre_read(ssd, 0, 0, 0, 0) == FAILURE)
-		{
-			printf("the read operation is expand the capacity of SSD\n");
-			return 0;
-		}
-		active_superblock = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block; //获取当前超级块号
-
-		// 更新磨损块表，调整条带组织
-		update_block_wear_state(ssd, active_superblock);
-		wear_num = 0;
-		high_wear_num = 0;
-		idle_num = 0;
-		healthy_num = 0;
-		wear_flag = 0;
-		high_wear_flag = 0;
-		idle_flag = 0;
-		healthy_flag = 0;
-		for (int i = 0; i < BAND_WITDH; i++)
-		{
-			switch (ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state) {
-			case 1:
-			{
-				wear_num++;
-				wear_flag |= 1ll << i;
-				break;
-			}
-			case 2:
-			{
-				high_wear_num++;
-				high_wear_flag |= 1ll << i;
-				// 高磨损块不予分配，成为闲置块
-				ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 3;
-				break;
-			}
-			case 3:
-			{
-				idle_num++;
-				idle_flag |= 1ll << i;
-				break;
-			}
-			default: {
-			}
-			}
-		}
-
-		healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
-		healthy_flag = ~(idle_flag | wear_flag | high_wear_flag);
-		//没有磨损块时默认选择最后一块健康块作为校验块
-		if (wear_num == 0)
-		{
-			wear_num = 1;
-			int index;
-			for (index = BAND_WITDH - 1; index >= 0; index--) {
-				if ((healthy_flag | (1ll << index)) == healthy_flag) {
-					wear_flag |= 1ll << index;
-					break;
-				}
-			}
-			healthy_num--;
-			healthy_flag &= ~(1ll << index);
-		}
-		// 健康块少于磨损块，无法使用WARD组织，
-		if (healthy_num < wear_num) {
-			// 弃用该超级块，使用下个超级块
-			ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block++;
-			ssd->band_head[active_superblock].bad_flag = 1;
-			continue;
-		}
-		// 使用该超级块，进入条带组织
-		break;
+	// 在channel0，chip0，die0，plane0中寻找是否存在活跃超级块
+	if (find_superblock_for_pre_read(ssd, 0, 0, 0, 0) == FAILURE)
+	{
+		printf("the read operation is expand the capacity of SSD\n");
+		return 0;
 	}
-	if(ssd->strip_bit==0)
-		ssd->strip_bit = idle_flag | wear_flag | high_wear_flag;
-	ssd->parity_bit = wear_flag;
+	active_superblock = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block; //获取当前超级块号
+	ec_mode = ssd->band_head[active_superblock].ec_modle; //获取将要写的超级块对应的EC模式
+
+
+	current_superpage = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].blk_head[active_superblock].last_write_page + 1; //获取将要写的超级页	
+	if (current_superpage >= (int)(ssd->parameter->page_block))
+	{
+		ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].blk_head[active_superblock].last_write_page = 0;
+		printf("error! the last write page larger than 64!!\n");
+		return ERROR;
+	}
+	first_parity = BAND_WITDH - (((current_superpage + 1) * ec_mode) % BAND_WITDH); //找出第一个校验的位置
+	if (ssd->strip_bit == 0)
+	{
+		for (i = first_parity; i < first_parity + ec_mode; i++)
+		{
+			ssd->strip_bit = ssd->strip_bit | (1ll << (i % BAND_WITDH));
+		}
+	}
 	i = find_first_zero(ssd, ssd->strip_bit);
 	ssd->strip_bit = ssd->strip_bit | (1ll << i);
 	ssd->dram->superpage_buffer[i].lpn = lpn;
 	ssd->dram->superpage_buffer[i].size = sub_size;
 	ssd->dram->superpage_buffer[i].state = set_entry_state(ssd, lsn, sub_size);
-	
 	//如果该条带中所有数据页到齐，则计算校验页状态，产生校验页，并一次性将该superpage大小读请求预写到闪存中
 	if (size(ssd->strip_bit) == BAND_WITDH)
 	{
-		int now_length = healthy_num + wear_num; //高磨损块不参与条带组织
-		for (int i = 0; i < wear_num; i++) {
-			int parity_state = 0;
-			int band_width = (now_length + wear_num - i - 1) / (wear_num - i); // 向上取整
-			//printf("band_width:%d\n", band_width);
-			now_length -= band_width;
-			for (int j = 0; j < band_width - 1; j++) {
-				int pos = find_first_one(ssd, healthy_flag);
-				healthy_flag &= ~(1ll << pos);
-				//计算校验数据的请求状态
-				parity_state |= ssd->dram->superpage_buffer[pos].state;
-			}
-			int parity_pos = find_first_one(ssd, wear_flag);
-			wear_flag &= ~(1ll << parity_pos);
-			ssd->dram->superpage_buffer[parity_pos].lpn = -2;
-			ssd->dram->superpage_buffer[parity_pos].size = size(parity_state);
-			ssd->dram->superpage_buffer[parity_pos].state = parity_state;
+		//计算校验页状态
+		for (i = 0; i < BAND_WITDH; i++)
+		{
+			parity_state |= ssd->dram->superpage_buffer[i].state;
 		}
-
+		//产生校验数据
+		for (i = first_parity; i < first_parity + ec_mode; i++)
+		{
+			ssd->dram->superpage_buffer[i % BAND_WITDH].lpn = -2;
+			ssd->dram->superpage_buffer[i % BAND_WITDH].size = size(parity_state);
+			ssd->dram->superpage_buffer[i % BAND_WITDH].state = parity_state;
+		}
 		//将当前superpage大小的读请求预先写到闪存中
 		plane_die = ssd->parameter->plane_die;
 		plane_chip = plane_die * ssd->parameter->die_chip;
 		plane_channel = plane_chip * ssd->parameter->chip_channel[0];
-
-		unsigned long long write_flag = idle_flag | high_wear_flag;
-		for (i = 0; i < wear_num + healthy_num; i++)
+		for (i = 0; i < BAND_WITDH; i++)
 		{
-			int write_pos = find_first_zero(ssd, write_flag);
-			write_flag |= 1ll << write_pos;
-			channel = write_pos / plane_channel;
-			chip = (write_pos % plane_channel) / plane_chip;
-			die = (write_pos % plane_chip) / plane_die;
-			plane = write_pos % plane_die;
+			channel = i / plane_channel;
+			chip = (i % plane_channel) / plane_chip;
+			die = (i % plane_chip) / plane_die;
+			plane = i % plane_die;
+
 			if (write_page(ssd, channel, chip, die, plane, active_superblock, &ppn) == ERROR)
 			{
 				return 0;
@@ -452,14 +388,14 @@ unsigned int pre_process_for_read_request(struct ssd_info* ssd, unsigned int lsn
 			ssd->channel_head[location->channel].program_count++;
 			ssd->channel_head[location->channel].chip_head[location->chip].program_count++;
 			*/
-			lpn = ssd->dram->superpage_buffer[write_pos].lpn;
+			lpn = ssd->dram->superpage_buffer[i].lpn;
 			if (lpn != -2) {
 				ssd->dram->map->map_entry[lpn].pn = ppn;
-				ssd->dram->map->map_entry[lpn].state = ssd->dram->superpage_buffer[write_pos].state;   //0001
-				ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].valid_state = ssd->dram->map->map_entry[lpn].state;
-				ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].free_state = ((~ssd->dram->map->map_entry[lpn].state) & full_page);
+				ssd->dram->map->map_entry[lpn].state = ssd->dram->superpage_buffer[i].state;   //0001
 			}
 			ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].lpn = lpn;
+			ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].valid_state = ssd->dram->map->map_entry[lpn].state;
+			ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].free_state = ((~ssd->dram->map->map_entry[lpn].state) & full_page);
 
 			if (location->page == 0 && map_flag == 0) {
 
@@ -473,7 +409,6 @@ unsigned int pre_process_for_read_request(struct ssd_info* ssd, unsigned int lsn
 			location = NULL;
 		}
 		//printf("\n");
-
 		ssd->strip_bit = 0;
 		memset(ssd->dram->superpage_buffer, 0, BAND_WITDH * sizeof(struct sub_request));
 	}
@@ -495,160 +430,81 @@ unsigned int pre_process_for_last_read_request(struct ssd_info* ssd)
 	unsigned int full_page;
 	full_page = ~(0xffffffff << (ssd->parameter->subpage_page));
 
-	int wear_num, high_wear_num, idle_num, healthy_num;
-	unsigned long long wear_flag, high_wear_flag, idle_flag, healthy_flag;
-	while (1) {
-		// 在channel0，chip0，die0，plane0中寻找是否存在活跃超级块
-		if (find_superblock_for_pre_read(ssd, 0, 0, 0, 0) == FAILURE)
-		{
-			printf("the read operation is expand the capacity of SSD\n");
-			return 0;
-		}
-		active_superblock = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block; //获取当前超级块号
-
-		// 更新磨损块表，调整条带组织
-		update_block_wear_state(ssd, active_superblock);
-		wear_num = 0;
-		high_wear_num = 0;
-		idle_num = 0;
-		healthy_num = 0;
-		wear_flag = 0;
-		high_wear_flag = 0;
-		idle_flag = 0;
-		healthy_flag = 0;
-		for (int i = 0; i < BAND_WITDH; i++)
-		{
-			switch (ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state) {
-			case 1:
-			{
-				wear_num++;
-				wear_flag |= 1ll << i;
-				break;
-			}
-			case 2:
-			{
-				high_wear_num++;
-				high_wear_flag |= 1ll << i;
-				// 高磨损块不予分配，成为闲置块
-				ssd->dram->wear_map->wear_map_entry[i * ssd->parameter->block_plane + active_superblock].wear_state = 3;
-				break;
-			}
-			case 3:
-			{
-				idle_num++;
-				idle_flag |= 1ll << i;
-				break;
-			}
-			default: {
-			}
-			}
-		}
-
-		healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
-		healthy_flag = ~(idle_flag | wear_flag | high_wear_flag);
-		//没有磨损块时默认选择最后一块健康块作为校验块
-		if (wear_num == 0)
-		{
-			wear_num = 1;
-			int index;
-			for (index = BAND_WITDH - 1; index >= 0; index--) {
-				if ((healthy_flag | (1ll << index)) == healthy_flag) {
-					wear_flag |= 1ll << index;
-					break;
-				}
-			}
-			healthy_num--;
-			healthy_flag &= ~(1ll << index);
-		}
-		// 健康块少于磨损块，无法使用WARD组织，
-		if (healthy_num < wear_num) {
-			// 弃用该超级块，使用下个超级块
-			ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block++;
-			ssd->band_head[active_superblock].bad_flag = 1;
-			continue;
-		}
-		// 使用该超级块，进入条带组织
-		break;
+	// 在channel0，chip0，die0，plane0中寻找是否存在活跃超级块
+	if (find_superblock_for_pre_read(ssd, 0, 0, 0, 0) == FAILURE)
+	{
+		printf("the read operation is expand the capacity of SSD\n");
+		return 0;
 	}
+	active_superblock = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block; //获取当前超级块号
+	ec_mode = ssd->band_head[active_superblock].ec_modle; //获取将要写的超级块对应的EC模式
 
-	int now_length = healthy_num + wear_num; //高磨损块不参与条带组织
-	for (int i = 0; i < wear_num; i++) {
-		int flag = 0;
-		int parity_state = 0;
-		int band_width = (now_length + wear_num - i - 1) / (wear_num - i); // 向上取整
-		//printf("band_width:%d\n", band_width);
-		now_length -= band_width;
-		for (int j = 0; j < band_width - 1; j++) {
-			int pos = find_first_one(ssd, healthy_flag);
-			if ((1 << pos) & ssd->strip_bit != 0) {
-				int parity_pos = find_first_one(ssd, wear_flag);
-				wear_flag &= ~(1ll << parity_pos);
-				ssd->dram->superpage_buffer[parity_pos].lpn = -2;
-				ssd->dram->superpage_buffer[parity_pos].size = size(parity_state);
-				ssd->dram->superpage_buffer[parity_pos].state = parity_state;
-				flag = 1;
-				break;
-			}
-			healthy_flag &= ~(1ll << pos);
-			//计算校验数据的请求状态
-			parity_state |= ssd->dram->superpage_buffer[pos].state;
-		}
-		if (flag)
-			break;
-		int parity_pos = find_first_one(ssd, wear_flag);
-		wear_flag &= ~(1ll << parity_pos);
-		ssd->dram->superpage_buffer[parity_pos].lpn = -2;
-		ssd->dram->superpage_buffer[parity_pos].size = size(parity_state);
-		ssd->dram->superpage_buffer[parity_pos].state = parity_state;
+
+	current_superpage = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].blk_head[active_superblock].last_write_page + 1; //获取将要写的超级页	
+	if (current_superpage >= (int)(ssd->parameter->page_block))
+	{
+		ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].blk_head[active_superblock].last_write_page = 0;
+		printf("error! the last write page larger than 64!!\n");
+		return ERROR;
 	}
+	first_parity = BAND_WITDH - (((current_superpage + 1) * ec_mode) % BAND_WITDH); //找出第一个校验的位置
 
+	//计算校验页状态
+	for (i = 0; i < BAND_WITDH; i++)
+	{
+		parity_state |= ssd->dram->superpage_buffer[i].state;
+	}
+	//产生校验数据
+	for (i = first_parity; i < first_parity + ec_mode; i++)
+	{
+		ssd->dram->superpage_buffer[i % BAND_WITDH].lpn = -2;
+		ssd->dram->superpage_buffer[i % BAND_WITDH].size = size(parity_state);
+		ssd->dram->superpage_buffer[i % BAND_WITDH].state = parity_state;
+	}
 	//将当前superpage大小的读请求预先写到闪存中
 	plane_die = ssd->parameter->plane_die;
 	plane_chip = plane_die * ssd->parameter->die_chip;
 	plane_channel = plane_chip * ssd->parameter->chip_channel[0];
-	unsigned long long write_flag = idle_flag | high_wear_flag;
-	for (i = 0; i < wear_num + healthy_num; i++)
+	for (i = 0; i < BAND_WITDH; i++)
 	{
-		int write_pos = find_first_zero(ssd, write_flag);
-		if ((1 << write_pos) & ssd->strip_bit != 0) {
-			break;
-		}
-		write_flag |= 1ll << write_pos;
-		channel = write_pos / plane_channel;
-		chip = (write_pos % plane_channel) / plane_chip;
-		die = (write_pos % plane_chip) / plane_die;
-		plane = write_pos % plane_die;
-
-		if (write_page(ssd, channel, chip, die, plane, active_superblock, &ppn) == ERROR)
+		if ((ssd->strip_bit & (1ll << i)) != 0)
 		{
-			return 0;
-		}
-		location = find_location(ssd, ppn);
-		//printf("ppn = %d, channel = %d\tchip = %d\tdie = %d\tplane = %d\tblock=%d\tpage = %d\n", ppn, channel, chip, die, plane, active_superblock, current_superpage);
-		/*
-		ssd->program_count++;
-		ssd->channel_head[location->channel].program_count++;
-		ssd->channel_head[location->channel].chip_head[location->chip].program_count++;
-		*/
-		lpn = ssd->dram->superpage_buffer[write_pos].lpn;
-		if (lpn != -2) {
-			ssd->dram->map->map_entry[lpn].pn = ppn;
-			ssd->dram->map->map_entry[lpn].state = ssd->dram->superpage_buffer[write_pos].state;   //0001
+			channel = i / plane_channel;
+			chip = (i % plane_channel) / plane_chip;
+			die = (i % plane_chip) / plane_die;
+			plane = i % plane_die;
+
+			if (write_page(ssd, channel, chip, die, plane, active_superblock, &ppn) == ERROR)
+			{
+				return 0;
+			}
+			location = find_location(ssd, ppn);
+			//printf("ppn = %d, channel = %d\tchip = %d\tdie = %d\tplane = %d\tblock=%d\tpage = %d\n", ppn, channel, chip, die, plane, active_superblock, current_superpage);
+			/*
+			ssd->program_count++;
+			ssd->channel_head[location->channel].program_count++;
+			ssd->channel_head[location->channel].chip_head[location->chip].program_count++;
+			*/
+			lpn = ssd->dram->superpage_buffer[i].lpn;
+			if (lpn != -2) {
+				ssd->dram->map->map_entry[lpn].pn = ppn;
+				ssd->dram->map->map_entry[lpn].state = ssd->dram->superpage_buffer[i].state;   //0001
+			}
+			ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].lpn = lpn;
 			ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].valid_state = ssd->dram->map->map_entry[lpn].state;
 			ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].free_state = ((~ssd->dram->map->map_entry[lpn].state) & full_page);
-		}
-		ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].lpn = lpn;
 
-		if (location->page == 0 && map_flag == 0) {
+			if (location->page == 0 && map_flag == 0) {
 
-			map_flag = 1;
-			for (j = 0; j < BAND_WITDH; j++) {
-				ssd->dram->map->pbn[active_superblock][j] = j * ssd->parameter->block_plane + active_superblock;
+				map_flag = 1;
+				for (j = 0; j < BAND_WITDH; j++) {
+					ssd->dram->map->pbn[active_superblock][j] = j * ssd->parameter->block_plane + active_superblock;
+				}
 			}
-		}
 
-		free(location);
-		location = NULL;
+			free(location);
+			location = NULL;
+		}
 	}
 	//printf("\n");
 	ssd->strip_bit = 0;
