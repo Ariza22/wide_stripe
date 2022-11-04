@@ -2309,7 +2309,7 @@ int process_for_gc(struct ssd_info* ssd, struct request* req, unsigned int block
 						{
 							lpn = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].page_head[page].lpn;
 							// 有效的用户数据
-							if (lpn != -2 && lpn != -1)
+							if (lpn != -2 && lpn != -1 &&lpn!=-3)
 							{
 								ssd->total_gc_move_page_count++;
 								//将每个sub_page进行迁移
@@ -2320,6 +2320,7 @@ int process_for_gc(struct ssd_info* ssd, struct request* req, unsigned int block
 								ssd->dram->map->map_entry[lpn].state = 0;
 								ssd->dram->map->map_entry[lpn].pn = 0;       //值需要修改
 								// 按照逻辑，应该在if(valid_sub_page_num > 0)之后才能进行写（读后写），放在此处不会产生
+								ssd->write_used_space++;
 								insert2buffer(ssd, lpn, valid_state, NULL, req);
 								ssd->write_flash_gc_count++;
 

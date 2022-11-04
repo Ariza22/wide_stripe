@@ -1123,6 +1123,9 @@ void statistic_output(struct ssd_info *ssd)
 	fprintf(ssd->statisticfile,"total_gc_move_page_count :%13d\n",ssd->total_gc_move_page_count);
 	if(ssd->erase_count != 0)
 		fprintf(ssd->statisticfile,"avr_move page per GC :%13d\n",ssd->total_gc_move_page_count/ssd->erase_count);
+	ssd->write_amplification = (double)ssd->write_used_space / ssd->write_need_space;
+	fprintf(ssd->statisticfile, "write amplification:%13lf\n", ssd->write_amplification);
+
 	fflush(ssd->statisticfile);
 
 	fclose(ssd->statisticfile);

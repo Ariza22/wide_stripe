@@ -957,6 +957,8 @@ struct ssd_info *buffer_2_superpage_buffer(struct ssd_info *ssd, struct sub_requ
 	//为整个superpage创建子请求，挂在到相应的通道中
 	for (i = 0; i < BAND_WITDH; i++)
 	{
+		ssd->write_used_space += BAND_WITDH;
+		ssd->write_need_space += BAND_WITDH;
 		sub_req = NULL;
 		sub_req_state = ssd->dram->superpage_buffer[i].state;
 		sub_req_size = ssd->dram->superpage_buffer[i].size;

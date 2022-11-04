@@ -530,7 +530,7 @@ struct ssd_info* initialize_band(struct ssd_info *ssd)
 	for(i = 0; i < ssd->band_num; i++){
 		//ssd->band_head[i].ec_modle = rand() % 2 + 1;
 		ssd->band_head[i].ec_modle = 0;
-		ssd->band_head[i].pe_cycle = 3400;
+		ssd->band_head[i].pe_cycle = 3500;
 		ssd->band_head[i].advance_gc_flag = 0;
 		ssd->band_head[i].bad_flag = 0;
 	}

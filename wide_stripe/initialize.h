@@ -203,6 +203,11 @@ struct ssd_info{
 	__int64 write_avg;                   		//记录用于计算写请求平均响应时间的时间
 	__int64 read_avg;                    		//记录用于计算读请求平均响应时间的时间
 
+	unsigned int write_need_space;	//记录写操作所需的空间
+	unsigned int write_used_space; 	//记录写操作实际所占的空间
+
+	double write_amplification;
+
 	unsigned int min_lsn;
 	unsigned int max_lsn;
 	unsigned long read_count;
