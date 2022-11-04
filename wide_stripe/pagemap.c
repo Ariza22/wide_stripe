@@ -330,10 +330,11 @@ unsigned int pre_process_for_read_request(struct ssd_info* ssd, unsigned int lsn
 			printf("the read operation is expand the capacity of SSD\n");
 			return 0;
 		}
-		active_superblock = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block; //获取当前超级块号
+		active_superblock = ssd->active_block; //获取当前超级块号
 
 		// 更新磨损块表，调整条带组织
-		update_block_wear_state(ssd, active_superblock);
+		if (ssd->band_head[active_superblock].pe_cycle % 100 == 0)
+			update_block_wear_state(ssd, active_superblock,ssd->band_head[active_superblock].pe_cycle-100);
 		wear_num = 0;
 		high_wear_num = 0;
 		idle_num = 0;
@@ -389,8 +390,9 @@ unsigned int pre_process_for_read_request(struct ssd_info* ssd, unsigned int lsn
 		// 健康块少于磨损块，无法使用WARD组织，
 		if (healthy_num < wear_num) {
 			// 弃用该超级块，使用下个超级块
-			ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block++;
+			ssd->active_block++;
 			ssd->band_head[active_superblock].bad_flag = 1;
+			ssd->free_superblock_num--;
 			continue;
 		}
 		// 使用该超级块，进入条带组织
@@ -431,6 +433,21 @@ unsigned int pre_process_for_read_request(struct ssd_info* ssd, unsigned int lsn
 		plane_die = ssd->parameter->plane_die;
 		plane_chip = plane_die * ssd->parameter->die_chip;
 		plane_channel = plane_chip * ssd->parameter->chip_channel[0];
+		for (int i = 0; i < ssd->parameter->channel_number; i++)
+		{
+			for (int j = 0; j < ssd->parameter->chip_channel[0]; j++)
+			{
+				for (int k = 0; k < ssd->parameter->die_chip; k++)
+				{
+					for (int l = 0; l < ssd->parameter->plane_die; l++)
+					{
+						ssd->channel_head[i].chip_head[j].die_head[k].plane_head[l].blk_head[active_superblock].last_write_page++;
+						ssd->channel_head[i].chip_head[j].die_head[k].plane_head[l].blk_head[active_superblock].free_page_num--;
+						ssd->channel_head[i].chip_head[j].die_head[k].plane_head[l].free_page--;
+					}
+				}
+			}
+		}
 
 		unsigned long long write_flag = idle_flag | high_wear_flag;
 		for (i = 0; i < wear_num + healthy_num; i++)
@@ -472,7 +489,7 @@ unsigned int pre_process_for_read_request(struct ssd_info* ssd, unsigned int lsn
 			free(location);
 			location = NULL;
 		}
-		//printf("\n");
+
 
 		ssd->strip_bit = 0;
 		memset(ssd->dram->superpage_buffer, 0, BAND_WITDH * sizeof(struct sub_request));
@@ -507,7 +524,8 @@ unsigned int pre_process_for_last_read_request(struct ssd_info* ssd)
 		active_superblock = ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block; //获取当前超级块号
 
 		// 更新磨损块表，调整条带组织
-		update_block_wear_state(ssd, active_superblock);
+		if (ssd->band_head[active_superblock].pe_cycle % 100 == 0)
+			update_block_wear_state(ssd, active_superblock, ssd->band_head[active_superblock].pe_cycle - 100);
 		wear_num = 0;
 		high_wear_num = 0;
 		idle_num = 0;
@@ -563,8 +581,9 @@ unsigned int pre_process_for_last_read_request(struct ssd_info* ssd)
 		// 健康块少于磨损块，无法使用WARD组织，
 		if (healthy_num < wear_num) {
 			// 弃用该超级块，使用下个超级块
-			ssd->channel_head[0].chip_head[0].die_head[0].plane_head[0].active_block++;
+			ssd->active_block++;
 			ssd->band_head[active_superblock].bad_flag = 1;
+			ssd->free_superblock_num--;
 			continue;
 		}
 		// 使用该超级块，进入条带组织
@@ -618,6 +637,10 @@ unsigned int pre_process_for_last_read_request(struct ssd_info* ssd)
 		chip = (write_pos % plane_channel) / plane_chip;
 		die = (write_pos % plane_chip) / plane_die;
 		plane = write_pos % plane_die;
+
+		ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_superblock].last_write_page++;
+		ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_superblock].free_page_num--;
+	    ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page--;
 
 		if (write_page(ssd, channel, chip, die, plane, active_superblock, &ppn) == ERROR)
 		{
@@ -2354,7 +2377,6 @@ int gc_for_superblock(struct ssd_info* ssd, struct request* req)
 		getchar();
 		return FAILURE;
 	}
-	ouput_bad_block(ssd);
 	//处理该superblock中的有效数据，（读，写）
 	gc_subpage_num = process_for_gc(ssd, req, gc_superblock_number);
 
@@ -2368,19 +2390,17 @@ int gc_for_superblock(struct ssd_info* ssd, struct request* req)
 	return SUCCESS;
 }
 
-struct ssd_info* mark_high_wear_state(struct ssd_info* ssd, int block) {
+struct ssd_info* mark_high_wear_state(struct ssd_info* ssd, int block, int pe_cycle) {
 	unsigned int channel, chip, die, plane, page;
 	for (channel = 0; channel < ssd->parameter->channel_number; channel++) {
 		for (chip = 0; chip < ssd->parameter->chip_channel[0]; chip++) {
 			for (die = 0; die < ssd->parameter->die_chip; die++) {
 				for (plane = 0; plane < ssd->parameter->plane_die; plane++) {
-					double rand_seed = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].rber_random_seed;
-					int pe_cycle = ssd->band_head[block].pe_cycle;
-					double rber = 0.002 + rand_seed / 2 + (2.5 + rand_seed * 1500) * pe_cycle * pe_cycle / 10000000000;
+					int block_id = (((channel * ssd->parameter->chip_channel[0] + chip) * ssd->parameter->die_chip + die) * ssd->parameter->plane_die + plane) * ssd->parameter->block_plane + block;
+					double rber = ssd->dram->rber_table[block_id * 61 + pe_cycle / 100];
 					// 出现高磨损块
 					if (rber >= 0.006) {
 						// 暂不更改磨损块表，避免条带组织混乱，重新分配时再修改
-						ssd->band_head[block].bad_flag = 1;
 						ssd->band_head[block].advance_gc_flag = 1;
 						return ssd;
 					}
@@ -2475,7 +2495,7 @@ int process_for_gc(struct ssd_info* ssd, struct request* req, unsigned int block
 						{
 							lpn = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].page_head[page].lpn;
 							// 有效的用户数据
-							if (lpn != -2 && lpn != -1)
+							if (lpn != -2 && lpn != -1 && lpn != -3)
 							{
 								ssd->total_gc_move_page_count++;
 								//将每个sub_page进行迁移
@@ -2486,6 +2506,7 @@ int process_for_gc(struct ssd_info* ssd, struct request* req, unsigned int block
 								ssd->dram->map->map_entry[lpn].state = 0;
 								ssd->dram->map->map_entry[lpn].pn = 0;       //值需要修改
 								// 按照逻辑，应该在if(valid_sub_page_num > 0)之后才能进行写（读后写），放在此处不会产生
+								ssd->write_used_space++;
 								insert2buffer(ssd, lpn, valid_state, NULL, req);
 								ssd->write_flash_gc_count++;
 

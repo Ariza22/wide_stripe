@@ -185,6 +185,8 @@ struct ssd_info{
 	struct band_info *band_head; //条带链头
 #endif
 
+	int active_block; //当前的活跃超级块号
+
 #ifdef RECOVERY
 	int broken_page;
 	int recovery_page_num;
@@ -198,6 +200,9 @@ struct ssd_info{
 
 	unsigned int gc_request;            	//记录在SSD中，当前时刻有多少gc操作的请求
 
+	unsigned int write_need_space;	//记录写操作所需的空间
+	unsigned int write_used_space; 	//记录写操作实际所占的空间
+
 	unsigned int write_request_count;	//记录写操作的次数
 	unsigned int read_request_count; 	//记录读操作的次数
 	__int64 write_avg;                   		//记录用于计算写请求平均响应时间的时间
@@ -209,6 +214,7 @@ struct ssd_info{
 	unsigned long program_count;
 	unsigned long erase_count;
 	unsigned long total_gc_move_page_count;
+	double write_amplification;
 	unsigned long direct_erase_count;
 	unsigned long copy_back_count;
 	unsigned long m_plane_read_count;
@@ -334,7 +340,8 @@ struct blk_info{
 	unsigned int invalid_page_num;     //记录该块中失效页的个数，同上
 	int last_write_page;               //记录最近一次写操作执行的页数,-1表示该块没有一页被写过
 	struct page_info *page_head;       //记录每一子页的状态
-	double rber_random_seed;          //记录每个块rber的随机种子
+	double cur_rber;                       //记录该块该时期的rber
+	double pre_rber;                       //记录该块上时期的rber
 	unsigned int gc_flag ;
 #ifdef BROKEN_BLOCK
 	Status bad_block_flag;			  
@@ -370,7 +377,7 @@ struct dram_info{
 	struct sub_request *superpage_buffer;
 	struct buffer_info *superblock_buffer;
 #endif
-	
+	double* rber_table;
 };
 
 

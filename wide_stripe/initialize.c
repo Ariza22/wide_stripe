@@ -293,6 +293,14 @@ struct ssd_info *initiation(struct ssd_info *ssd)
 	fflush(ssd->statisticfile);
 
 	fclose(fp);
+
+	//预先检测一次磨损状态
+	for (int i = 0; i < ssd->parameter->block_plane; i++) {
+		if (ssd->band_head[i].pe_cycle % 100 == 0)
+			update_block_wear_state(ssd, i, ssd->band_head[i].pe_cycle - 100);
+	}
+	
+
 	printf("initiation is completed!\n");
 
 	return ssd;
@@ -326,6 +334,22 @@ struct dram_info * initialize_dram(struct ssd_info * ssd)
 	alloc_assert(dram->map,"dram->map");
 	memset(dram->map,0, sizeof(struct map_info));
 	memset(dram->wear_map, 0, sizeof(struct wear_map_info));
+
+	//rber表初始化
+	FILE* fp = fopen("new_rber.txt", "r");
+	if (fp == NULL)
+	{
+		printf("open rber file fail\n");
+		return NULL;
+	}
+	dram->rber_table = (double*)malloc(sizeof(double) * 61 * superpege_num * ssd->parameter->block_plane);
+	for (i = 0; i < 61* superpege_num * ssd->parameter->block_plane; i++)
+	{
+		fscanf(fp, "%lf",dram->rber_table+i);
+	}
+	fclose(fp);
+
+
 	//页映射
 	/*
 	large_lsn=(int)((ssd->parameter->subpage_page*ssd->parameter->page_block*ssd->parameter->block_plane*ssd->parameter->plane_die*ssd->parameter->die_chip*ssd->parameter->chip_num)*(1-ssd->parameter->overprovide));
@@ -406,7 +430,6 @@ struct blk_info * initialize_block(struct blk_info * p_block,struct parameter_va
 	p_block->free_page_num = parameter->page_block;	// all pages are free
 	p_block->last_write_page = -1;	// no page has been programmed
 	p_block->page_head = (struct page_info *)malloc(parameter->page_block * sizeof(struct page_info));
-	p_block->rber_random_seed = ((double)(rand() % 10000 - 5000)) / 10000000;
 	alloc_assert(p_block->page_head,"p_block->page_head");
 	memset(p_block->page_head,0,parameter->page_block * sizeof(struct page_info));
 	for(i = 0; i < parameter->page_block; i++)
@@ -530,7 +553,7 @@ struct ssd_info* initialize_band(struct ssd_info *ssd)
 	for(i = 0; i < ssd->band_num; i++){
 		//ssd->band_head[i].ec_modle = rand() % 2 + 1;
 		ssd->band_head[i].ec_modle = 1;
-		ssd->band_head[i].pe_cycle = 3400;
+		ssd->band_head[i].pe_cycle = 4500;
 		ssd->band_head[i].advance_gc_flag = 0;
 		ssd->band_head[i].bad_flag = 0;
 	}

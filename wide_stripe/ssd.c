@@ -114,7 +114,6 @@ struct ssd_info *simulate(struct ssd_info *ssd)
 
 
 
-
 #ifdef BROKEN_PAGE
 	for(i = 0; i < 64; i++)
 	{
@@ -877,9 +876,9 @@ void trace_output(struct ssd_info* ssd) {
 			if (flag == 1)
 			{
 				//写后读检测到的高磨损块优先gc
-				if (ssd->band_head[req->subs->location->block].pe_cycle % 1 == 0 ) {//检测频率
+				if (ssd->band_head[req->subs->location->block].pe_cycle % 100 == 0 ) {//检测频率
 					// 将带有高磨损块的条带标记为优先gc
-					mark_high_wear_state(ssd, req->subs->location->block);
+					mark_high_wear_state(ssd, req->subs->location->block, ssd->band_head[req->subs->location->block].pe_cycle);
 				}
 				fprintf(ssd->outputfile, "%16I64u %10u %6u %2u %16I64u %16I64u %10I64u\n", req->time, req->lsn, req->size, req->operation, start_time, end_time, end_time - req->time);
 				fflush(ssd->outputfile);
@@ -1128,6 +1127,8 @@ void statistic_output(struct ssd_info *ssd)
 	fprintf(ssd->statisticfile,"total_gc_move_page_count :%13d\n",ssd->total_gc_move_page_count);
 	if(ssd->erase_count != 0)
 		fprintf(ssd->statisticfile,"avr_move page per GC :%13d\n",ssd->total_gc_move_page_count/ssd->erase_count);
+	ssd->write_amplification = (double)ssd->write_used_space / ssd->write_need_space;
+	fprintf(ssd->statisticfile, "write amplification:%13lf\n", ssd->write_amplification);
 	fflush(ssd->statisticfile);
 
 	fclose(ssd->statisticfile);

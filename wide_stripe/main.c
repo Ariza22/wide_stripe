@@ -45,7 +45,7 @@ void main()
 	ssd = initiation(ssd);
 
 	/*旧化ssd*/
-	//make_aged(ssd);
+	make_aged(ssd);
 
 	/*基于superblock的读请求预处理操作*/
 	ssd = pre_process_superpage(ssd);
@@ -92,6 +92,8 @@ void main()
 #endif
 	printf("\nstart the bad block output\n");
 	ouput_bad_block(ssd);
+
+	output_wear_state(ssd);
 	/*将仿真结果和请求相关信息输出到statisticfile（.dat) 和outputfile（.out）中*/
 	printf("start statistic output\n");
 	statistic_output(ssd);

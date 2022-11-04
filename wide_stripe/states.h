@@ -5,11 +5,11 @@
 #define USE_SUPERBLOCK "SUPERBLOCK" //采用超级块条带组织
 #define CALCULATION "CALCULATION" //EC的编解码计算时间
 
-#define BROKEN "BROKEN"
+//#define BROKEN "BROKEN"
 //#define BROKEN_BLOCK "BROKEN_BLOCK"
-#define BROKEN_PAGE "BROKEN_PAGE"
+//#define BROKEN_PAGE "BROKEN_PAGE"
 /*默认为被动恢复*/
-#define  RECOVERY "RECOVERY"
+//#define  RECOVERY "RECOVERY"
 /*主动恢复*/
 //#define ACTIVE_RECOVERY "ACTIVE_RECOVERY"
 

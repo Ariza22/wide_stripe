@@ -749,6 +749,50 @@ void ouput_bad_block(struct ssd_info* ssd) {
 	fclose(fp);
 }
 
+void output_wear_state(struct ssd_info* ssd) {
+
+	FILE* fp = fopen("wear_state.txt", "w");
+	if (fp == NULL)
+	{
+		printf("open wear_state falided\n");
+		return;
+	}
+
+	for (int i = 0; i < 512; i++)
+	{
+		int wear_num = 0;
+		int high_wear_num = 0;
+		int idle_num = 0;
+		int healthy_num = 0;
+		for (int j = 0; j < BAND_WITDH; j++)
+		{
+			switch (ssd->dram->wear_map->wear_map_entry[j * ssd->parameter->block_plane + i].wear_state) {
+			case 1:
+			{
+				wear_num++;
+				break;
+			}
+			case 2:
+			{
+				high_wear_num++;
+				break;
+			}
+			case 3:
+			{
+				idle_num++;
+				break;
+			}
+			default: {
+			}
+			}
+		}
+
+		healthy_num = BAND_WITDH - wear_num - high_wear_num - idle_num;
+		fprintf(fp, "num:%d\t%d\t%d\t%d\t%d\n", i,healthy_num, wear_num, high_wear_num, idle_num);
+	}
+	fclose(fp);
+}
+
 unsigned int  spread_lpn(struct ssd_info * ssd,unsigned int lpn)
 {	
 	unsigned int add_flag;

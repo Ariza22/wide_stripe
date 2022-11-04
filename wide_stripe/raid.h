@@ -10,7 +10,7 @@
 
 void pre_process_test(struct ssd_info *ssd,int type);
 void ouput_bad_block(struct ssd_info* ssd);
-
+void output_wear_state(struct ssd_info* ssd);
 struct sub_request *creat_parity_sub_request(struct ssd_info *ssd,unsigned int start_lpn ,unsigned int lpn,unsigned int parity_size,unsigned int parity_state,struct request*req,unsigned int operation);
 void pre_write_parity_page(struct ssd_info *ssd,unsigned int lsn);
 void delete_r_sub_from_channel(struct ssd_info*ssd,unsigned int channel,struct sub_request *sub_ch);

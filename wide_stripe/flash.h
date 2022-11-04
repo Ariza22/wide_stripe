@@ -35,7 +35,7 @@ int get_ppn_for_normal_command(struct ssd_info * ssd, unsigned int channel,unsig
 // superblock
 struct ssd_info *dynamic_advanced_process(struct ssd_info *ssd,unsigned int channel,unsigned int chip);
 void NAND_write(struct ssd_info *ssd, struct sub_request *sub);
-struct ssd_info* update_block_wear_state(struct ssd_info* ssd, int active_block);
+struct ssd_info* update_block_wear_state(struct ssd_info* ssd, int active_block, int pe_cycle);
 int multi_plane_write(struct ssd_info *ssd, struct sub_request *sub0, struct sub_request *sub1);
 int check_multi_plane(struct ssd_info *ssd, struct sub_request *sub0, struct sub_request *sub1);
 struct sub_request *get_first_write_sub(struct ssd_info *ssd, unsigned int channel, unsigned int chip, unsigned int die, unsigned int *plane);
