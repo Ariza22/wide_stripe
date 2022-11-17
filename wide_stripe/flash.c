@@ -1107,10 +1107,14 @@ struct sub_request * creat_write_sub_request(struct ssd_info * ssd,unsigned int 
 	plane_chip = plane_die * ssd->parameter->die_chip;
 	plane_channel = plane_chip * ssd->parameter->chip_channel[0];
 
-	channel = pos / plane_channel;
+	/*channel = pos / plane_channel;
 	chip = (pos % plane_channel) / plane_chip;
 	die = (pos % plane_chip) / plane_die;
-	plane = pos % plane_die;
+	plane = pos % plane_die;*/
+	channel = pos % 4;
+	chip = (pos / (2 * 2 * 4)) % 4;
+	die = (pos / 4) % 2;
+	plane = (pos / (2 * 4)) % 2;
 
     //sub的location                       
 	sub->location=(struct local *)malloc(sizeof(struct local));
@@ -2057,7 +2061,7 @@ Status services_2_r_cmd_trans_and_complete(struct ssd_info * ssd)
 				}
 #endif
 			}
-			if(!delete_flag)
+			if(!delete_flag) // 连续出现多个要删掉的子请求时p应该为最前面未删除的那个子请求
 				p=sub;
 			sub=sub->next_node;
 		}
@@ -5847,7 +5851,7 @@ struct ssd_info *compute_serve_time(struct ssd_info *ssd,unsigned int channel,un
 				}
 				else
 				{
-					subs[i]->current_time=last_sub->complete_time+ssd->parameter->time_characteristics.tDBSY;
+					subs[i]->current_time=last_sub->next_state_predict_time+ssd->parameter->time_characteristics.tDBSY;
 				}
 				
 				subs[i]->next_state=SR_COMPLETE;
@@ -5857,13 +5861,13 @@ struct ssd_info *compute_serve_time(struct ssd_info *ssd,unsigned int channel,un
 				if(subs[i]->lpn == -2)
 				{
 #ifdef CALCULATION
-					subs[i]->complete_time=subs[i]->next_state_predict_time + 82000;
+					subs[i]->complete_time=subs[i]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG + 82000;
 #else
-					subs[i]->complete_time=subs[i]->next_state_predict_time;
+					subs[i]->complete_time=subs[i]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
 #endif
 				}
 				else
-					subs[i]->complete_time=subs[i]->next_state_predict_time;
+					subs[i]->complete_time=subs[i]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
 
 				last_sub=subs[i];
 				delete_w_sub_request(ssd,channel,subs[i]);
@@ -6574,12 +6578,12 @@ Status go_one_step(struct ssd_info * ssd, struct sub_request * sub1,struct sub_r
 				ssd->channel_head[location->channel].current_state=CHANNEL_DATA_TRANSFER;		
 				ssd->channel_head[location->channel].current_time=ssd->current_time;		
 				ssd->channel_head[location->channel].next_state=CHANNEL_IDLE;	
-				ssd->channel_head[location->channel].next_state_predict_time=sub_twoplane_one->next_state_predict_time;
+				ssd->channel_head[location->channel].next_state_predict_time=sub_twoplane_two->next_state_predict_time;
 
 				ssd->channel_head[location->channel].chip_head[location->chip].current_state=CHIP_DATA_TRANSFER;				
 				ssd->channel_head[location->channel].chip_head[location->chip].current_time=ssd->current_time;			
 				ssd->channel_head[location->channel].chip_head[location->chip].next_state=CHIP_IDLE;			
-				ssd->channel_head[location->channel].chip_head[location->chip].next_state_predict_time=sub_twoplane_one->next_state_predict_time;
+				ssd->channel_head[location->channel].chip_head[location->chip].next_state_predict_time= sub_twoplane_two->next_state_predict_time;
 
 				ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].add_reg_ppn=-1;
 			

@@ -454,10 +454,10 @@ unsigned int pre_process_for_read_request(struct ssd_info* ssd, unsigned int lsn
 		{
 			int write_pos = find_first_zero(ssd, write_flag);
 			write_flag |= 1ll << write_pos;
-			channel = write_pos / plane_channel;
-			chip = (write_pos % plane_channel) / plane_chip;
-			die = (write_pos % plane_chip) / plane_die;
-			plane = write_pos % plane_die;
+			channel = write_pos % 4;
+			chip = (write_pos / (2 * 2 * 4)) % 4;
+			die = (write_pos / 4) % 2;
+			plane = (write_pos / (2 * 4)) % 2;
 			if (write_page(ssd, channel, chip, die, plane, active_superblock, &ppn) == ERROR)
 			{
 				return 0;
@@ -633,10 +633,10 @@ unsigned int pre_process_for_last_read_request(struct ssd_info* ssd)
 			break;
 		}
 		write_flag |= 1ll << write_pos;
-		channel = write_pos / plane_channel;
-		chip = (write_pos % plane_channel) / plane_chip;
-		die = (write_pos % plane_chip) / plane_die;
-		plane = write_pos % plane_die;
+		channel = write_pos % 4;
+		chip = (write_pos / (2 * 2 * 4)) % 4;
+		die = (write_pos / 4) % 2;
+		plane = (write_pos / (2 * 4)) % 2;
 
 		ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_superblock].last_write_page++;
 		ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_superblock].free_page_num--;
