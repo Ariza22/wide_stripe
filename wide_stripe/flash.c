@@ -1135,17 +1135,11 @@ struct sub_request * creat_write_sub_request(struct ssd_info * ssd,unsigned int 
 	sub->lpn=lpn;
 	sub->size=sub_size;
 	sub->state=state;
-	if(lpn == -2)
-	{
 #ifdef CALCULATION
-		sub->begin_time = ssd->current_time + 82000;
-#else
-		sub->begin_time = ssd->current_time;
+	ssd->current_time += 82000;
 #endif
-	}
-		
-	else
-		sub->begin_time = ssd->current_time;
+
+	sub->begin_time = ssd->current_time;
 	//把该请求插入到req的sub队列头
 	if(req!=NULL)
 	{
@@ -5803,28 +5797,82 @@ struct ssd_info *compute_serve_time(struct ssd_info *ssd,unsigned int channel,un
 
 	if((command==INTERLEAVE_TWO_PLANE)||(command==COPY_BACK))
 	{
-		for(i=0;i<max_subs_num;i++)
+		int count = 0;
+		int index = 0;
+		for (i = 0; i < max_subs_num; i++)
 		{
-			if(subs[i]!=NULL)
+			if (subs[i] != NULL)
 			{
-				last_sub=subs[i];
-				subs[i]->current_state=SR_W_TRANSFER;
-				subs[i]->current_time=ssd->current_time;
-				subs[i]->next_state=SR_COMPLETE;
-				subs[i]->next_state_predict_time=ssd->current_time+7*ssd->parameter->time_characteristics.tWC+(subs[i]->size*ssd->parameter->subpage_capacity)*ssd->parameter->time_characteristics.tWC + ssd->parameter->time_characteristics.tPROG;
-				if(subs[i]->lpn == -2)
+				if (last_sub != NULL) {
+					if (subs[i]->location->die == last_sub->location->die)
+						index = i;
+				}
+				count++;
+				last_sub = subs[i];
+			}
+		}
+		
+		last_sub = NULL;
+		
+		for (i = 0; i < max_subs_num; i++)
+		{
+			if (subs[i] != NULL)
+			{
+
+				subs[i]->current_state = SR_W_TRANSFER;
+				if (last_sub == NULL)
 				{
-#ifdef CALCULATION
-					subs[i]->complete_time=subs[i]->next_state_predict_time + 82000;
-#else
-					subs[i]->complete_time=subs[i]->next_state_predict_time;
-#endif
+					subs[i]->current_time = ssd->current_time;
 				}
 				else
-					subs[i]->complete_time=subs[i]->next_state_predict_time;
-				delete_w_sub_request(ssd,channel,subs[i]);
+				{
+					subs[i]->current_time = last_sub->next_state_predict_time;
+				}
+
+				subs[i]->next_state = SR_COMPLETE;
+
+				subs[i]->next_state_predict_time = subs[i]->current_time + 7 * ssd->parameter->time_characteristics.tWC + (subs[i]->size * ssd->parameter->subpage_capacity) * ssd->parameter->time_characteristics.tWC;
+
+				last_sub = subs[i];
+				delete_w_sub_request(ssd, channel, subs[i]);
 				//delete_from_channel(ssd,channel,subs[i]);
 			}
+		}
+
+		if (count == 4) {
+			for (i = 0; i < 2; i++)
+			{
+				if (subs[i] != NULL)
+				{
+					subs[i]->complete_time = subs[1]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
+				}
+			}
+			for (i = 2; i < 4; i++)
+			{
+				if (subs[i] != NULL)
+				{
+					subs[i]->complete_time = subs[3]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
+				}
+			}
+
+		}
+
+		if (count == 3) {
+			for (i = 0; i < 3-index; i++)
+			{
+				if (subs[i] != NULL)
+				{
+					subs[i]->complete_time = subs[2 - index]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
+				}
+			}
+			for (i = 3 - index; i < 3; i++)
+			{
+				if (subs[i] != NULL)
+				{
+					subs[i]->complete_time = subs[2]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
+				}
+			}
+
 		}
 
 		ssd->channel_head[channel].chip_head[chip].current_state=CHIP_WRITE_BUSY;										
@@ -5837,6 +5885,7 @@ struct ssd_info *compute_serve_time(struct ssd_info *ssd,unsigned int channel,un
 		ssd->channel_head[channel].next_state = CHANNEL_IDLE;
 		ssd->channel_head[channel].next_state_predict_time = ssd->channel_head[channel].chip_head[chip].next_state_predict_time - ssd->parameter->time_characteristics.tPROG;
 	}
+
 	else if(command==TWO_PLANE)
 	{
 		for(i=0;i<max_subs_num;i++)
@@ -5851,33 +5900,29 @@ struct ssd_info *compute_serve_time(struct ssd_info *ssd,unsigned int channel,un
 				}
 				else
 				{
-					subs[i]->current_time=last_sub->next_state_predict_time+ssd->parameter->time_characteristics.tDBSY;
+					subs[i]->current_time=last_sub->next_state_predict_time;
 				}
 				
 				subs[i]->next_state=SR_COMPLETE;
 
-
 				subs[i]->next_state_predict_time=subs[i]->current_time+7*ssd->parameter->time_characteristics.tWC+(subs[i]->size*ssd->parameter->subpage_capacity)*ssd->parameter->time_characteristics.tWC;
-				if(subs[i]->lpn == -2)
-				{
-#ifdef CALCULATION
-					subs[i]->complete_time=subs[i]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG + 82000;
-#else
-					subs[i]->complete_time=subs[i]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
-#endif
-				}
-				else
-					subs[i]->complete_time=subs[i]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
 
 				last_sub=subs[i];
 				delete_w_sub_request(ssd,channel,subs[i]);
 				//delete_from_channel(ssd,channel,subs[i]);
 			}
 		}
+		for (i = 0; i < max_subs_num; i++)
+		{
+			if (subs[i] != NULL)
+			{
+				subs[i]->complete_time = last_sub->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
+			}
+		}
 		ssd->channel_head[channel].current_state=CHANNEL_TRANSFER;										
 		ssd->channel_head[channel].current_time=ssd->current_time;										
 		ssd->channel_head[channel].next_state=CHANNEL_IDLE;										
-		ssd->channel_head[channel].next_state_predict_time=last_sub->complete_time;
+		ssd->channel_head[channel].next_state_predict_time=last_sub->next_state_predict_time;
 
 		ssd->channel_head[channel].chip_head[chip].current_state=CHIP_WRITE_BUSY;										
 		ssd->channel_head[channel].chip_head[chip].current_time=ssd->current_time;									
@@ -5898,20 +5943,11 @@ struct ssd_info *compute_serve_time(struct ssd_info *ssd,unsigned int channel,un
 				}
 				else
 				{
-					subs[i]->current_time=last_sub->complete_time;
+					subs[i]->current_time=last_sub->next_state_predict_time;
 				}
 				subs[i]->next_state=SR_COMPLETE;
 				subs[i]->next_state_predict_time=subs[i]->current_time+7*ssd->parameter->time_characteristics.tWC+(subs[i]->size*ssd->parameter->subpage_capacity)*ssd->parameter->time_characteristics.tWC;
-				if(subs[i]->lpn == -2)
-				{
-#ifdef CALCULATION
-					subs[i]->complete_time=subs[i]->next_state_predict_time + 82000;
-#else
-					subs[i]->complete_time=subs[i]->next_state_predict_time;
-#endif
-				}
-				else
-					subs[i]->complete_time=subs[i]->next_state_predict_time;
+				subs[i]->complete_time=subs[i]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
 				last_sub=subs[i];
 				delete_w_sub_request(ssd,channel,subs[i]);
 				//delete_from_channel(ssd,channel,subs[i]);
@@ -5920,7 +5956,7 @@ struct ssd_info *compute_serve_time(struct ssd_info *ssd,unsigned int channel,un
 		ssd->channel_head[channel].current_state=CHANNEL_TRANSFER;										
 		ssd->channel_head[channel].current_time=ssd->current_time;										
 		ssd->channel_head[channel].next_state=CHANNEL_IDLE;										
-		ssd->channel_head[channel].next_state_predict_time=last_sub->complete_time;
+		ssd->channel_head[channel].next_state_predict_time=last_sub->next_state_predict_time;
 
 		ssd->channel_head[channel].chip_head[chip].current_state=CHIP_WRITE_BUSY;										
 		ssd->channel_head[channel].chip_head[chip].current_time=ssd->current_time;									
@@ -5933,22 +5969,14 @@ struct ssd_info *compute_serve_time(struct ssd_info *ssd,unsigned int channel,un
 		subs[0]->current_time=ssd->current_time;
 		subs[0]->next_state=SR_COMPLETE;
 		subs[0]->next_state_predict_time=ssd->current_time+7*ssd->parameter->time_characteristics.tWC+(subs[0]->size*ssd->parameter->subpage_capacity)*ssd->parameter->time_characteristics.tWC;
-		if(subs[0]->lpn == -2)
-		{
-#ifdef CALCULATION
-			subs[0]->complete_time=subs[0]->next_state_predict_time + 82000;
-#else
-			subs[0]->complete_time=subs[0]->next_state_predict_time;
-#endif
-		}
-		else
-			subs[0]->complete_time=subs[0]->next_state_predict_time;
+
+		subs[0]->complete_time=subs[0]->next_state_predict_time + ssd->parameter->time_characteristics.tPROG;
 		//delete_from_channel(ssd,channel,subs[0]);
 		delete_w_sub_request(ssd,channel,subs[0]);
 		ssd->channel_head[channel].current_state=CHANNEL_TRANSFER;										
 		ssd->channel_head[channel].current_time=ssd->current_time;										
 		ssd->channel_head[channel].next_state=CHANNEL_IDLE;										
-		ssd->channel_head[channel].next_state_predict_time=subs[0]->complete_time;
+		ssd->channel_head[channel].next_state_predict_time=subs[0]->next_state_predict_time;
 
 		ssd->channel_head[channel].chip_head[chip].current_state=CHIP_WRITE_BUSY;										
 		ssd->channel_head[channel].chip_head[chip].current_time=ssd->current_time;									
