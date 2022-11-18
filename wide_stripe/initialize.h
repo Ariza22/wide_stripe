@@ -54,6 +54,7 @@ Zhiming Zhu     2012/07/19        2.1.1         Correct erase_planes()   8128398
 #define WRITE 0
 #define RESUME	2	//恢复操作
 
+#define CODE_LAT 820000
 /*********************************all states of each objects************************************************
 *一下定义了channel的空闲，命令地址传输，数据传输，传输，其他等状态
 *还有chip的空闲，写忙，读忙，命令地址传输，数据传输，擦除忙，copyback忙，其他等状态
@@ -186,6 +187,8 @@ struct ssd_info{
 #endif
 
 	int active_block; //当前的活跃超级块号
+	
+	__int64 write_time; //写请求在加上编码后开始执行的时间
 
 #ifdef RECOVERY
 	int broken_page;

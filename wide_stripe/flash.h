@@ -76,6 +76,7 @@ int allocate_location(struct ssd_info * ssd ,struct sub_request *sub_req);
 
 
 int go_one_step(struct ssd_info * ssd, struct sub_request * sub1,struct sub_request *sub2, unsigned int aim_state,unsigned int command);
+int go_one_step_interleave_twoplane(struct ssd_info* ssd, struct sub_request* sub1, struct sub_request* sub2, struct sub_request* sub3, struct sub_request* sub4, unsigned int aim_state);
 int services_2_r_cmd_trans_and_complete(struct ssd_info * ssd);
 int services_2_r_wait(struct ssd_info * ssd,unsigned int channel,unsigned int * channel_busy_flag, unsigned int * change_current_time_flag);
 

@@ -369,6 +369,12 @@ int get_requests(struct ssd_info *ssd)
 	nearest_event_time=find_nearest_event(ssd);
 	if (nearest_event_time==0x7fffffffffffffff)
 	{
+		if (time_t >= ssd->write_time) {
+			fseek(ssd->tracefile, filepoint, 0);
+			ssd->current_time = ssd->write_time;
+			ssd->write_time = 0x7fffffffffffffff;
+			return -1;
+		}
 		ssd->current_time=time_t;           
 		                                                  
 		//if (ssd->request_queue_length>ssd->parameter->queue_length)    //如果请求队列的长度超过了配置文件中所设置的长度                     
@@ -394,6 +400,11 @@ int get_requests(struct ssd_info *ssd)
 			if (ssd->current_time<=nearest_event_time)
 			{
 				//printf("The most recent event is earlier than the time the request arrived.\t");
+				if (nearest_event_time >= ssd->write_time) {
+					ssd->current_time = ssd->write_time;
+					ssd->write_time = 0x7fffffffffffffff;
+					return -1;
+				}
 				ssd->current_time=nearest_event_time;
 			}
 			return -1;
