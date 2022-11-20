@@ -2157,7 +2157,7 @@ Status services_2_r_data_trans(struct ssd_info * ssd,unsigned int channel,unsign
 
 
 
-				if(((ssd->parameter->advanced_commands&AD_TWOPLANE_READ)==AD_TWOPLANE_READ)||((ssd->parameter->advanced_commands&AD_INTERLEAVE)==AD_INTERLEAVE))
+				else if(((ssd->parameter->advanced_commands&AD_TWOPLANE_READ)==AD_TWOPLANE_READ)||((ssd->parameter->advanced_commands&AD_INTERLEAVE)==AD_INTERLEAVE))
 				{
 					if ((ssd->parameter->advanced_commands&AD_TWOPLANE_READ)==AD_TWOPLANE_READ)     /*有可能产生了two plane操作，在这种情况下，将同一个die上的两个plane的数据依次传出*/
 					{
@@ -6548,17 +6548,19 @@ Status go_one_step(struct ssd_info * ssd, struct sub_request * sub1,struct sub_r
 				sub->next_state=SR_R_DATA_TRANSFER;
 				sub->next_state_predict_time=sub->current_time+ssd->parameter->time_characteristics.tR;
 
-				ssd->channel_head[location->channel].current_state = CHANNEL_IDLE;
-				ssd->channel_head[location->channel].current_time = ssd->current_time;
-				ssd->channel_head[location->channel].next_state = CHANNEL_DATA_TRANSFER;
-				if(ssd->channel_head[location->channel].next_state_predict_time < sub->next_state_predict_time)
+				if (ssd->channel_head[location->channel].next_state_predict_time <= sub->current_time) {
+					ssd->channel_head[location->channel].current_state = CHANNEL_IDLE;
+					ssd->channel_head[location->channel].current_time = ssd->current_time;
+					ssd->channel_head[location->channel].next_state = CHANNEL_DATA_TRANSFER;
 					ssd->channel_head[location->channel].next_state_predict_time = sub->next_state_predict_time;
+				}
 
-				ssd->channel_head[location->channel].chip_head[location->chip].current_state=CHIP_READ_BUSY;
-				ssd->channel_head[location->channel].chip_head[location->chip].current_time=ssd->current_time;
-				ssd->channel_head[location->channel].chip_head[location->chip].next_state=CHIP_DATA_TRANSFER;
-				if (ssd->channel_head[location->channel].chip_head[location->chip].next_state_predict_time < sub->next_state_predict_time)
+				if (ssd->channel_head[location->channel].chip_head[location->chip].next_state_predict_time <= sub->current_time) {
+					ssd->channel_head[location->channel].chip_head[location->chip].current_state = CHIP_READ_BUSY;
+					ssd->channel_head[location->channel].chip_head[location->chip].current_time = ssd->current_time;
+					ssd->channel_head[location->channel].chip_head[location->chip].next_state = CHIP_DATA_TRANSFER;
 					ssd->channel_head[location->channel].chip_head[location->chip].next_state_predict_time = sub->next_state_predict_time;
+				}
 
 				break;
 			}

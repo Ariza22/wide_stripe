@@ -54,7 +54,7 @@ Zhiming Zhu     2012/07/19        2.1.1         Correct erase_planes()   8128398
 #define WRITE 0
 #define RESUME	2	//恢复操作
 
-#define CODE_LAT 820000
+#define CODE_LAT 82000
 /*********************************all states of each objects************************************************
 *一下定义了channel的空闲，命令地址传输，数据传输，传输，其他等状态
 *还有chip的空闲，写忙，读忙，命令地址传输，数据传输，擦除忙，copyback忙，其他等状态
@@ -208,8 +208,15 @@ struct ssd_info{
 
 	unsigned int write_request_count;	//记录写操作的次数
 	unsigned int read_request_count; 	//记录读操作的次数
+
+	unsigned int write_request_count_not_in_buffer;	//记录写操作的次数
+	unsigned int read_request_count_not_in_buffer; 	//记录读操作的次数
+
 	__int64 write_avg;                   		//记录用于计算写请求平均响应时间的时间
 	__int64 read_avg;                    		//记录用于计算读请求平均响应时间的时间
+
+	__int64 write_avg_not_in_buffer;                   		//记录用于计算写请求平均响应时间的时间
+	__int64 read_avg_not_in_buffer;                    		//记录用于计算读请求平均响应时间的时间
 
 	unsigned int min_lsn;
 	unsigned int max_lsn;

@@ -903,12 +903,16 @@ void trace_output(struct ssd_info* ssd) {
 				if (req->operation == READ)
 				{
 					ssd->read_request_count++;
+					ssd->read_request_count_not_in_buffer++;
 					ssd->read_avg = ssd->read_avg + (end_time - req->time);
+					ssd->read_avg_not_in_buffer = ssd->read_avg + (end_time - req->time);
 				}
 				else
 				{
 					ssd->write_request_count++;
+					ssd->write_request_count_not_in_buffer++;
 					ssd->write_avg = ssd->write_avg + (end_time - req->time);
+					ssd->write_avg_not_in_buffer = ssd->write_avg + (end_time - req->time);
 				}
 
 				while (req->subs != NULL)
@@ -1081,6 +1085,10 @@ void statistic_output(struct ssd_info *ssd)
 		fprintf(ssd->outputfile,"read request average response time: %16I64u\n",ssd->read_avg/ssd->read_request_count);
 	if(ssd->write_request_count != 0)
 		fprintf(ssd->outputfile,"write request average response time: %16I64u\n", ssd->write_avg / ssd->write_request_count);
+	if (ssd->read_avg_not_in_buffer != 0)
+		fprintf(ssd->outputfile, "read request average response time not in buffer: %16I64u\n", ssd->read_avg_not_in_buffer / ssd->read_request_count_not_in_buffer);
+	if (ssd->write_avg_not_in_buffer != 0)
+		fprintf(ssd->outputfile, "write request average response time not in buffer: %16I64u\n", ssd->write_avg_not_in_buffer / ssd->write_request_count_not_in_buffer);
 	fprintf(ssd->outputfile, "request average response time: %16I64u\n", (ssd->read_avg + ssd->write_avg) / (ssd->read_request_count + ssd->write_request_count));
 	fprintf(ssd->outputfile,"buffer read hits: %13d\n",ssd->dram->buffer->read_hit);
 	fprintf(ssd->outputfile,"buffer read miss: %13d\n",ssd->dram->buffer->read_miss_hit);
@@ -1128,6 +1136,10 @@ void statistic_output(struct ssd_info *ssd)
 		fprintf(ssd->statisticfile,"read request average response time: %16I64u\n",ssd->read_avg/ssd->read_request_count);
 	if(ssd->write_request_count != 0)
 		fprintf(ssd->statisticfile,"write request average response time: %16I64u\n",ssd->write_avg/ssd->write_request_count);
+	if (ssd->read_avg_not_in_buffer != 0)
+		fprintf(ssd->statisticfile, "read request average response time not in buffer: %16I64u\n", ssd->read_avg_not_in_buffer / ssd->read_request_count_not_in_buffer);
+	if (ssd->write_avg_not_in_buffer != 0)
+		fprintf(ssd->statisticfile, "write request average response time not in buffer: %16I64u\n", ssd->write_avg_not_in_buffer / ssd->write_request_count_not_in_buffer);
 	fprintf(ssd->statisticfile, "request average response time: %16I64u\n", (ssd->read_avg + ssd->write_avg) / (ssd->read_request_count + ssd->write_request_count));
 	fprintf(ssd->statisticfile,"buffer read hits: %13d\n",ssd->dram->buffer->read_hit);
 	fprintf(ssd->statisticfile,"buffer read miss: %13d\n",ssd->dram->buffer->read_miss_hit);
